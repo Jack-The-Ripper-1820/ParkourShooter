@@ -84,6 +84,15 @@ void AParkourShooterCharacter::SetupPlayerInputComponent(class UInputComponent* 
 		//Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AParkourShooterCharacter::Look);
 
+		//Switch Camera
+		EnhancedInputComponent->BindAction(SwitchCameraAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::SwitchCamera);
+
+		//Sprint
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::Sprint);
+
+		//Crouch
+		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::Crouch);
+
 	}
 
 }
@@ -122,6 +131,18 @@ void AParkourShooterCharacter::Look(const FInputActionValue& Value)
 		AddControllerYawInput(LookAxisVector.X);
 		AddControllerPitchInput(LookAxisVector.Y);
 	}
+}
+
+void AParkourShooterCharacter::SwitchCamera(const FInputActionValue& Value)
+{
+}
+
+void AParkourShooterCharacter::Sprint(const FInputActionValue& Value)
+{
+}
+
+void AParkourShooterCharacter::Crouch(const FInputActionValue& Value)
+{
 }
 
 
