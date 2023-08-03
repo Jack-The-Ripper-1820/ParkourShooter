@@ -9,13 +9,19 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "ParkourShooter/Components/CustomCharacterMovementComponent.h"
+
 
 
 //////////////////////////////////////////////////////////////////////////
 // AParkourShooterCharacter
 
-AParkourShooterCharacter::AParkourShooterCharacter()
+AParkourShooterCharacter::AParkourShooterCharacter(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UCustomCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
+	CustomCharacterMovement = Cast<UCustomCharacterMovementComponent>(GetCharacterMovement());
+	CustomCharacterMovement->SetIsReplicated(true);
+
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
@@ -49,6 +55,37 @@ AParkourShooterCharacter::AParkourShooterCharacter()
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+}
+
+void AParkourShooterCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	/*if (APlayerController* PlayerController = Cast<APlayerController>(GetController())) {
+
+		UE_LOG(LogTemp, Warning, TEXT("PLayerController Casted"));
+
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer())) {
+
+			UE_LOG(LogTemp, Warning, TEXT("Subsystem Casted"));
+
+
+			Subsystem->ClearAllMappings();
+			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+		}
+	}*/
+}
+
+FCollisionQueryParams AParkourShooterCharacter::GetIgnoreCharacterParams() const
+{
+	FCollisionQueryParams Params;
+
+	TArray<AActor*> CharacterChildren;
+	GetAllChildActors(CharacterChildren);
+	Params.AddIgnoredActors(CharacterChildren);
+	Params.AddIgnoredActor(this);
+
+	return Params;
 }
 
 void AParkourShooterCharacter::BeginPlay()
@@ -139,10 +176,19 @@ void AParkourShooterCharacter::SwitchCamera(const FInputActionValue& Value)
 
 void AParkourShooterCharacter::Sprint(const FInputActionValue& Value)
 {
+	if (bIsSprinting) {
+		bIsSprinting = false;
+		CustomCharacterMovement->SprintReleased();
+	}
+	else {
+		bIsSprinting = true;
+		CustomCharacterMovement->SprintPressed();
+	}
 }
 
 void AParkourShooterCharacter::Crouch(const FInputActionValue& Value)
 {
+	CustomCharacterMovement->CrouchPressed();
 }
 
 

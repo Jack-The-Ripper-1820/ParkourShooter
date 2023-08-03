@@ -17,6 +17,9 @@ class AParkourShooterCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class USpringArmComponent* CameraBoom;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	class UCustomCharacterMovementComponent* CustomCharacterMovement;
+
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UCameraComponent* FollowCamera;
@@ -47,7 +50,14 @@ class AParkourShooterCharacter : public ACharacter
 	UInputAction* CrouchAction;
 
 public:
-	AParkourShooterCharacter();
+	AParkourShooterCharacter(const FObjectInitializer& ObjectInitializer);
+
+	virtual void PossessedBy(AController* NewController) override;
+
+	FCollisionQueryParams GetIgnoreCharacterParams() const;
+
+	bool bIsSprinting = false;
+	bool bIsCrouched = false;
 	
 
 protected:
