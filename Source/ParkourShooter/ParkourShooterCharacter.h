@@ -70,7 +70,10 @@ protected:
 
 	void SwitchCamera(const FInputActionValue& Value);
 	void Sprint(const FInputActionValue& Value);
-	void Crouch(const FInputActionValue& Value);
+	void CrouchPressed(const FInputActionValue& Value);
+	void CrouchReleased(const FInputActionValue& Value);
+	void Prone(const FInputActionValue& Value);
+
 			
 
 protected:
@@ -79,7 +82,6 @@ protected:
 	
 	// To add mapping context
 	virtual void BeginPlay();
-
 public:
 	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }

@@ -22,6 +22,8 @@ AParkourShooterCharacter::AParkourShooterCharacter(const FObjectInitializer& Obj
 	CustomCharacterMovement = Cast<UCustomCharacterMovementComponent>(GetCharacterMovement());
 	CustomCharacterMovement->SetIsReplicated(true);
 
+	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
+
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
@@ -127,8 +129,11 @@ void AParkourShooterCharacter::SetupPlayerInputComponent(class UInputComponent* 
 		//Sprint
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::Sprint);
 
-		//Crouch
-		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::Crouch);
+		//CrouchPressed
+		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Started, this, &AParkourShooterCharacter::CrouchPressed);
+
+		//CrouchReleased
+		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::CrouchReleased);
 
 	}
 
@@ -186,9 +191,20 @@ void AParkourShooterCharacter::Sprint(const FInputActionValue& Value)
 	}
 }
 
-void AParkourShooterCharacter::Crouch(const FInputActionValue& Value)
+void AParkourShooterCharacter::CrouchPressed(const FInputActionValue& Value)
 {
 	CustomCharacterMovement->CrouchPressed();
+}
+
+void AParkourShooterCharacter::CrouchReleased(const FInputActionValue& Value)
+{
+	CustomCharacterMovement->CrouchReleased();
+}
+
+void AParkourShooterCharacter::Prone(const FInputActionValue& Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("PronePressed in Chr"));
+	CustomCharacterMovement->PronePressed();
 }
 
 
