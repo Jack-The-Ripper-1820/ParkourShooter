@@ -193,11 +193,13 @@ void AParkourShooterCharacter::Sprint(const FInputActionValue& Value)
 
 void AParkourShooterCharacter::CrouchPressed(const FInputActionValue& Value)
 {
+	bIsCrouched = !bIsCrouched;
 	CustomCharacterMovement->CrouchPressed();
 }
 
 void AParkourShooterCharacter::CrouchReleased(const FInputActionValue& Value)
 {
+	//bIsCrouched = false;
 	CustomCharacterMovement->CrouchReleased();
 }
 
