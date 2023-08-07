@@ -26,4 +26,5 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float Deltatime)
 	Velocity.Z = 0.f;
 	Speed = Velocity.Size();
 
+	bIsProne = PlayerCharacter->bIsProne;
 }

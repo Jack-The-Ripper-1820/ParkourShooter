@@ -49,6 +49,9 @@ class AParkourShooterCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* CrouchAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* DashAction;
+
 public:
 	AParkourShooterCharacter(const FObjectInitializer& ObjectInitializer);
 
@@ -57,7 +60,8 @@ public:
 	FCollisionQueryParams GetIgnoreCharacterParams() const;
 
 	bool bIsSprinting = false;
-	bool bIsCrouched = false;
+	//bool bIsCrouched = false;
+	bool bIsProne = false;
 	
 
 protected:
@@ -72,8 +76,8 @@ protected:
 	void Sprint(const FInputActionValue& Value);
 	void CrouchPressed(const FInputActionValue& Value);
 	void CrouchReleased(const FInputActionValue& Value);
-	void Prone(const FInputActionValue& Value);
-
+	void DashPressed(const FInputActionValue& Value);
+	void DashReleased(const FInputActionValue& Value);
 			
 
 protected:

@@ -135,6 +135,12 @@ void AParkourShooterCharacter::SetupPlayerInputComponent(class UInputComponent* 
 		//CrouchReleased
 		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::CrouchReleased);
 
+
+		//DashPressed
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &AParkourShooterCharacter::DashPressed);
+
+		//DashReleased
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::DashReleased);
 	}
 
 }
@@ -193,7 +199,7 @@ void AParkourShooterCharacter::Sprint(const FInputActionValue& Value)
 
 void AParkourShooterCharacter::CrouchPressed(const FInputActionValue& Value)
 {
-	bIsCrouched = !bIsCrouched;
+	bIsCrouched = ~bIsCrouched;
 	CustomCharacterMovement->CrouchPressed();
 }
 
@@ -203,10 +209,14 @@ void AParkourShooterCharacter::CrouchReleased(const FInputActionValue& Value)
 	CustomCharacterMovement->CrouchReleased();
 }
 
-void AParkourShooterCharacter::Prone(const FInputActionValue& Value)
+void AParkourShooterCharacter::DashPressed(const FInputActionValue& Value)
 {
-	UE_LOG(LogTemp, Warning, TEXT("PronePressed in Chr"));
-	CustomCharacterMovement->PronePressed();
+	CustomCharacterMovement->DashPressed();
+}
+
+void AParkourShooterCharacter::DashReleased(const FInputActionValue& Value)
+{
+	CustomCharacterMovement->DashReleased();
 }
 
 

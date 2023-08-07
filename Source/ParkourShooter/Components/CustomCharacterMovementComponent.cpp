@@ -75,7 +75,8 @@ void UCustomCharacterMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
 {
 	Super::UpdateFromCompressedFlags(Flags);
 
-	Safe_bWantsToSprint = (Flags & FSavedMove_Character::FLAG_Custom_0) != 0;
+	Safe_bWantsToSprint = (Flags & FSavedMove_Custom::FLAG_Sprint) != 0;
+	Safe_bWantsToDash = (Flags & FSavedMove_Custom::FLAG_Dash) != 0;
 }
 
 void UCustomCharacterMovementComponent::OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity)
@@ -119,11 +120,24 @@ void UCustomCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float
 			if (!CharacterOwner->HasAuthority()) Server_EnterProne();
 		}
 		Safe_bWantsToProne = false;
+		if (PlayerCharacterOwner) PlayerCharacterOwner->bIsProne = false;
 	}
 
-	if (IsCustomMovementMode(CMOVE_Prone) && !bWantsToCrouch)
-	{
+	if (IsCustomMovementMode(CMOVE_Prone) && !bWantsToCrouch) {
 		SetMovementMode(MOVE_Walking);
+	}
+
+	// Dash
+	bool bAuthProxy = CharacterOwner->HasAuthority() && !CharacterOwner->IsLocallyControlled();
+	if (Safe_bWantsToDash && CanDash()) {
+		if (!bAuthProxy || GetWorld()->GetTimeSeconds() - DashStartTime > AuthDashCooldownDuration) {
+			PerformDash();
+			Safe_bWantsToDash = false;
+			Proxy_bDash = !Proxy_bDash;
+		}
+		else {
+			UE_LOG(LogTemp, Warning, TEXT("Client tried to cheat"))
+		}
 	}
 
 	Super::UpdateCharacterStateBeforeMovement(DeltaSeconds);
@@ -198,15 +212,25 @@ void UCustomCharacterMovementComponent::CrouchPressed()
 
 void UCustomCharacterMovementComponent::CrouchReleased()
 {
+	//PlayerCharacterOwner->bIsProne = false;
 	GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EnterProne);
 }
 
-void UCustomCharacterMovementComponent::PronePressed()
+void UCustomCharacterMovementComponent::DashPressed()
 {
-	bWantsToCrouch = ~bWantsToCrouch;
-	UE_LOG(LogTemp, Warning, TEXT("Crouched: %d %d"), bWantsToCrouch, IsCrouching());
-	Safe_bWantsToProne = true;
-	UE_LOG(LogTemp, Warning, TEXT("prone pressed in movement: %d"), Safe_bWantsToProne);
+	float CurrentTime = GetWorld()->GetTimeSeconds();
+	if (CurrentTime - DashStartTime >= DashCooldownDuration) {
+		Safe_bWantsToDash = true;
+	}
+	else {
+		GetWorld()->GetTimerManager().SetTimer(TimerHandle_DashCooldown, this, &UCustomCharacterMovementComponent::OnDashCooldownFinished, DashCooldownDuration - (CurrentTime - DashStartTime));
+	}
+}
+
+void UCustomCharacterMovementComponent::DashReleased()
+{
+	GetWorld()->GetTimerManager().ClearTimer(TimerHandle_DashCooldown);
+	Safe_bWantsToDash = false;
 }
 
 bool UCustomCharacterMovementComponent::IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const
@@ -455,11 +479,19 @@ bool UCustomCharacterMovementComponent::CanSlide() const
 void UCustomCharacterMovementComponent::Server_EnterProne_Implementation()
 {
 	Safe_bWantsToProne = true;
+	//PlayerCharacterOwner->bIsProne = true;
+}
+
+void UCustomCharacterMovementComponent::TryEnterProne()
+{
+	Safe_bWantsToProne = true; 
 }
 
 void UCustomCharacterMovementComponent::EnterProne(EMovementMode PrevMode, ECustomMovementMode PrevCustomMove)
 {
 	UE_LOG(LogTemp, Warning, TEXT("Enter Prone"));
+
+	if (PlayerCharacterOwner) PlayerCharacterOwner->bIsProne = true;
 
 	bWantsToCrouch = true;
 
@@ -686,6 +718,49 @@ void UCustomCharacterMovementComponent::PhysClimb(float deltaTime, int32 Iterati
 {
 }
 
+void UCustomCharacterMovementComponent::OnDashCooldownFinished()
+{
+	Safe_bWantsToDash = true;
+}
+
+bool UCustomCharacterMovementComponent::CanDash() const
+{
+	return IsWalking() && !IsCrouching();
+}
+
+void UCustomCharacterMovementComponent::PerformDash()
+{
+	UE_LOG(LogTemp, Warning, TEXT("Performing Dash"));
+
+	DashStartTime = GetWorld()->GetTimeSeconds();
+
+	FVector DashDirection = (Acceleration.IsNearlyZero() ? UpdatedComponent->GetForwardVector() : Acceleration).GetSafeNormal2D();
+	//DashDirection = FVector::UpVector * .1f;
+	Velocity = DashImpulse * (DashDirection + FVector::UpVector * .1f);
+
+	FQuat NewRotation = FRotationMatrix::MakeFromXZ(DashDirection, FVector::UpVector).ToQuat();
+	FHitResult Hit;
+	SafeMoveUpdatedComponent(FVector::ZeroVector, NewRotation, false, Hit);
+
+	SetMovementMode(MOVE_Falling);
+
+	DashStartDelegate.Broadcast();
+}
+
+void UCustomCharacterMovementComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME_CONDITION(UCustomCharacterMovementComponent, Proxy_bDash, COND_SkipOwner)
+}
+
+void UCustomCharacterMovementComponent::OnRep_Dash()
+{
+	//CharacterOwner->PlayAnimMontage(DashMontage);
+	
+	DashStartDelegate.Broadcast();
+}
+
 UCustomCharacterMovementComponent::FSavedMove_Custom::FSavedMove_Custom()
 {
 	Saved_bWantsToSprint = 0;
@@ -701,6 +776,10 @@ bool UCustomCharacterMovementComponent::FSavedMove_Custom::CanCombineWith(const 
 		return false;
 	}
 
+	if (Saved_bWantsToDash != NewCustomMove->Saved_bWantsToDash) {
+		return false;
+	}
+
 	return FSavedMove_Character::CanCombineWith(NewMove, InCharacter, MaxDelta);
 }
 
@@ -709,13 +788,18 @@ void UCustomCharacterMovementComponent::FSavedMove_Custom::Clear()
 	FSavedMove_Character::Clear();
 
 	Saved_bWantsToSprint = 0;
+	Saved_bWantsToDash = 0;
+
+	Saved_bWantsToProne = 0;
+	Saved_bPrevWantsToCrouch = 0;
 }
 
 uint8 UCustomCharacterMovementComponent::FSavedMove_Custom::GetCompressedFlags() const
 {
 	uint8 Result = Super::GetCompressedFlags();
 
-	if (Saved_bWantsToSprint) Result |= FLAG_Custom_0;
+	if (Saved_bWantsToSprint) Result |= FLAG_Sprint;
+	if (Saved_bWantsToDash) Result |= FLAG_Dash;
 
 	return Result;
 }
@@ -729,6 +813,7 @@ void UCustomCharacterMovementComponent::FSavedMove_Custom::SetMoveFor(ACharacter
 	Saved_bWantsToSprint = CharacterMovement->Safe_bWantsToSprint;
 	Saved_bPrevWantsToCrouch = CharacterMovement->Safe_bPrevWantsToCrouch;
 	Saved_bWantsToProne = CharacterMovement->Safe_bWantsToProne;
+	Saved_bWantsToDash = CharacterMovement->Safe_bWantsToDash;
 }
 
 void UCustomCharacterMovementComponent::FSavedMove_Custom::PrepMoveFor(ACharacter* C)
@@ -740,6 +825,7 @@ void UCustomCharacterMovementComponent::FSavedMove_Custom::PrepMoveFor(ACharacte
 	CharacterMovement->Safe_bWantsToSprint = Saved_bWantsToSprint;
 	CharacterMovement->Safe_bPrevWantsToCrouch = Saved_bPrevWantsToCrouch;
 	CharacterMovement->Safe_bWantsToProne = Saved_bWantsToProne;
+	CharacterMovement->Safe_bWantsToDash = Saved_bWantsToDash;
 }
 
 UCustomCharacterMovementComponent::FNetworkPredictionData_Client_Custom::FNetworkPredictionData_Client_Custom(const UCharacterMovementComponent& ClientMovement)

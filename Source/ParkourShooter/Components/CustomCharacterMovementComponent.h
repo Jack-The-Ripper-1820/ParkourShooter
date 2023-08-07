@@ -10,12 +10,15 @@
  * 
  */
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FDashStartDelegate);
+
 UENUM(BlueprintType)
 enum ECustomMovementMode
 {
 	CMOVE_None UMETA(Hidden),
 	CMOVE_Slide UMETA(DisplayName = "Slide"),
 	CMOVE_Prone UMETA(DisplayName = "Prone"),
+	CMOVE_Dash UMETA(DisplayName = "Dash"),
 	CMOVE_Climb	UMETA(DisplayName = "Climb"),
 	CMOVE_MAX UMETA(Hidden),
 };
@@ -44,6 +47,8 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 			uint8 Saved_bPrevWantsToCrouch : 1;
 
 			uint8 Saved_bWantsToProne : 1;
+
+			uint8 Saved_bWantsToDash : 1;
 
 		public:
 			FSavedMove_Custom();
@@ -84,12 +89,34 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 	UPROPERTY(EditDefaultsOnly) float MaxProneSpeed = 300.f;
 	UPROPERTY(EditDefaultsOnly) float BrakingDecelerationProning = 2500.f;
 
+	// Dash
+	UPROPERTY(EditDefaultsOnly) float DashCooldownDuration = 2.f;
+	UPROPERTY(EditDefaultsOnly) float AuthDashCooldownDuration = .9f;
+	UPROPERTY(EditDefaultsOnly) float DashImpulse = 2000.f;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* DashMontage;
+
 	UPROPERTY(Transient) class AParkourShooterCharacter* PlayerCharacterOwner;
 
 	bool Safe_bWantsToSprint;
 	bool Safe_bPrevWantsToCrouch;
 	bool Safe_bWantsToProne;
+	bool Safe_bWantsToDash;
+
+	bool Safe_bHadAnimRootMotion;
+
+	float DashStartTime;
+
+
 	FTimerHandle TimerHandle_EnterProne;
+	FTimerHandle TimerHandle_DashCooldown;
+
+
+	// Replication
+	UPROPERTY(ReplicatedUsing = OnRep_Dash) bool Proxy_bDash;
+
+	// Delegates
+public:
+	UPROPERTY(BlueprintAssignable) FDashStartDelegate DashStartDelegate;
 
 public:
 	UCustomCharacterMovementComponent();
@@ -118,7 +145,8 @@ public:
 	UFUNCTION(BlueprintCallable) void SprintReleased();
 	UFUNCTION(BlueprintCallable) void CrouchPressed();
 	UFUNCTION(BlueprintCallable) void CrouchReleased();
-	UFUNCTION(BlueprintCallable) void PronePressed();
+	UFUNCTION(BlueprintCallable) void DashPressed();
+	UFUNCTION(BlueprintCallable) void DashReleased();
 	UFUNCTION(BlueprintPure) bool IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const;
 	UFUNCTION(BlueprintPure) bool IsMovementMode(EMovementMode InMovementMode) const;
 
@@ -132,7 +160,7 @@ private:
 
 	// Prone
 private:
-	FORCEINLINE void TryEnterProne() { Safe_bWantsToProne = true; }
+	void TryEnterProne();
 	UFUNCTION(Server, Reliable) void Server_EnterProne();
 
 	void EnterProne(EMovementMode PrevMode, ECustomMovementMode PrevCustomMove);
@@ -144,4 +172,18 @@ private:
 private:
 	bool TryClimb();
 	void PhysClimb(float deltaTime, int32 Iterations);
+
+	// Dash
+private:
+	void OnDashCooldownFinished();
+
+	bool CanDash() const;
+	void PerformDash();
+
+public:
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+private:
+	UFUNCTION() void OnRep_Dash();
+
 };
