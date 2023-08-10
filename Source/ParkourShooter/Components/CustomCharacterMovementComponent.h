@@ -96,6 +96,7 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 	UPROPERTY(EditDefaultsOnly) float AuthDashCooldownDuration = .9f;
 	UPROPERTY(EditDefaultsOnly) float DashImpulse = 2000.f;
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* DashMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* SlideMontage;
 
 	UPROPERTY(Transient) class AParkourShooterCharacter* PlayerCharacterOwner;
 

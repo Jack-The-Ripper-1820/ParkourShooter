@@ -83,6 +83,8 @@ void UCustomCharacterMovementComponent::OnMovementUpdated(float DeltaSeconds, co
 {
 	Super::OnMovementUpdated(DeltaSeconds, OldLocation, OldVelocity);
 
+	if (IsMovementMode(MOVE_Flying) && !HasRootMotionSources()) SetMovementMode(MOVE_Walking);
+
 	Safe_bPrevWantsToCrouch = bWantsToCrouch;
 }
 
@@ -247,8 +249,9 @@ void UCustomCharacterMovementComponent::EnterSlide(EMovementMode PrevMode, ECust
 {
 	UE_LOG(LogTemp, Warning, TEXT("Slide Entered"));
 	bWantsToCrouch = true;
-	bOrientRotationToMovement = false;
+	bOrientRotationToMovement = true;
 	Velocity += Velocity.GetSafeNormal2D() * SlideEnterImpulse;
+	CharacterOwner->PlayAnimMontage(SlideMontage);
 
 	FindFloor(UpdatedComponent->GetComponentLocation(), CurrentFloor, true, NULL);
 }
@@ -725,12 +728,20 @@ void UCustomCharacterMovementComponent::OnDashCooldownFinished()
 
 bool UCustomCharacterMovementComponent::CanDash() const
 {
-	return IsWalking() && !IsCrouching();
+	return IsWalking() && !IsCrouching() || IsFalling();
 }
 
 void UCustomCharacterMovementComponent::PerformDash()
 {
 	UE_LOG(LogTemp, Warning, TEXT("Performing Dash"));
+
+	/*DashStartTime = GetWorld()->GetTimeSeconds();
+
+	SetMovementMode(MOVE_Flying);
+
+	CharacterOwner->PlayAnimMontage(DashMontage);
+
+	DashStartDelegate.Broadcast();*/
 
 	if (PlayerCharacterOwner && PlayerCharacterOwner->IsLocallyControlled()) PlayerCharacterOwner->bIsDashing = true;
 	DashStartTime = GetWorld()->GetTimeSeconds();
@@ -744,7 +755,6 @@ void UCustomCharacterMovementComponent::PerformDash()
 	SafeMoveUpdatedComponent(FVector::ZeroVector, NewRotation, false, Hit);
 
 	SetMovementMode(MOVE_Falling);
-	CharacterOwner->PlayAnimMontage(DashMontage);
 
 	DashStartDelegate.Broadcast();
 }
