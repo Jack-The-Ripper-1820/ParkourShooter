@@ -62,6 +62,12 @@ public:
 	bool bIsSprinting = false;
 	//bool bIsCrouched = false;
 	bool bIsProne = false;
+	bool bCustomJump;
+	bool bIsDashing = false;
+
+	virtual void Jump() override;
+	virtual void StopJumping() override;
+
 	
 
 protected:
@@ -78,6 +84,7 @@ protected:
 	void CrouchReleased(const FInputActionValue& Value);
 	void DashPressed(const FInputActionValue& Value);
 	void DashReleased(const FInputActionValue& Value);
+
 			
 
 protected:
@@ -91,5 +98,8 @@ public:
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	/** Returns Cusotm Character Movement Component subobject **/
+	FORCEINLINE class UCustomCharacterMovementComponent* GetCustomCharacterMovement() const { return CustomCharacterMovement; }
 };
 

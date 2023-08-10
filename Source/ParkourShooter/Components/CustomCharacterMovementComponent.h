@@ -50,6 +50,8 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 
 			uint8 Saved_bWantsToDash : 1;
 
+			uint8 Saved_bPressedCustomJump : 1;
+
 		public:
 			FSavedMove_Custom();
 

@@ -90,6 +90,22 @@ FCollisionQueryParams AParkourShooterCharacter::GetIgnoreCharacterParams() const
 	return Params;
 }
 
+void AParkourShooterCharacter::Jump()
+{
+	Super::Jump();
+
+	UE_LOG(LogTemp, Warning, TEXT("Pressed Jump: %d"), bPressedJump);
+
+	//bPressedJump = false;
+}
+
+void AParkourShooterCharacter::StopJumping()
+{
+	Super::StopJumping();
+
+	bCustomJump = false;
+}
+
 void AParkourShooterCharacter::BeginPlay()
 {
 	// Call the base class  
@@ -114,8 +130,8 @@ void AParkourShooterCharacter::SetupPlayerInputComponent(class UInputComponent* 
 	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent)) {
 		
 		//Jumping
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &AParkourShooterCharacter::Jump);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::StopJumping);
 
 		//Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AParkourShooterCharacter::Move);
@@ -199,7 +215,7 @@ void AParkourShooterCharacter::Sprint(const FInputActionValue& Value)
 
 void AParkourShooterCharacter::CrouchPressed(const FInputActionValue& Value)
 {
-	bIsCrouched = ~bIsCrouched;
+	//bIsCrouched = ~bIsCrouched;
 	CustomCharacterMovement->CrouchPressed();
 }
 

@@ -9,7 +9,7 @@
 
 UCustomCharacterMovementComponent::UCustomCharacterMovementComponent()
 {
-	NavAgentProps.bCanCrouch = true;//
+	NavAgentProps.bCanCrouch = true;
 }
 
 FNetworkPredictionData_Client* UCustomCharacterMovementComponent::GetPredictionData_Client() const
@@ -120,7 +120,7 @@ void UCustomCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float
 			if (!CharacterOwner->HasAuthority()) Server_EnterProne();
 		}
 		Safe_bWantsToProne = false;
-		if (PlayerCharacterOwner) PlayerCharacterOwner->bIsProne = false;
+		if (PlayerCharacterOwner && PlayerCharacterOwner->IsLocallyControlled()) PlayerCharacterOwner->bIsProne = false;
 	}
 
 	if (IsCustomMovementMode(CMOVE_Prone) && !bWantsToCrouch) {
@@ -491,7 +491,7 @@ void UCustomCharacterMovementComponent::EnterProne(EMovementMode PrevMode, ECust
 {
 	UE_LOG(LogTemp, Warning, TEXT("Enter Prone"));
 
-	if (PlayerCharacterOwner) PlayerCharacterOwner->bIsProne = true;
+	if (PlayerCharacterOwner && PlayerCharacterOwner->IsLocallyControlled()) PlayerCharacterOwner->bIsProne = true;
 
 	bWantsToCrouch = true;
 
@@ -732,6 +732,7 @@ void UCustomCharacterMovementComponent::PerformDash()
 {
 	UE_LOG(LogTemp, Warning, TEXT("Performing Dash"));
 
+	if (PlayerCharacterOwner && PlayerCharacterOwner->IsLocallyControlled()) PlayerCharacterOwner->bIsDashing = true;
 	DashStartTime = GetWorld()->GetTimeSeconds();
 
 	FVector DashDirection = (Acceleration.IsNearlyZero() ? UpdatedComponent->GetForwardVector() : Acceleration).GetSafeNormal2D();
@@ -743,6 +744,7 @@ void UCustomCharacterMovementComponent::PerformDash()
 	SafeMoveUpdatedComponent(FVector::ZeroVector, NewRotation, false, Hit);
 
 	SetMovementMode(MOVE_Falling);
+	CharacterOwner->PlayAnimMontage(DashMontage);
 
 	DashStartDelegate.Broadcast();
 }

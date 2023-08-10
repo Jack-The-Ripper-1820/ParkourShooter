@@ -2,6 +2,7 @@
 
 
 #include "PlayerAnimInstance.h"
+#include "ParkourShooter/Components/CustomCharacterMovementComponent.h"
 #include "ParkourShooter/ParkourShooterCharacter.h"
 
 void UPlayerAnimInstance::NativeInitializeAnimation()
@@ -26,5 +27,9 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float Deltatime)
 	Velocity.Z = 0.f;
 	Speed = Velocity.Size();
 
-	bIsProne = PlayerCharacter->bIsProne;
+	bIsProne = PlayerCharacter->GetCustomCharacterMovement()->IsMovementMode(MOVE_Custom) && PlayerCharacter->GetCustomCharacterMovement()->IsCustomMovementMode(CMOVE_Prone);
+
+	bIsSliding = PlayerCharacter->GetCustomCharacterMovement()->IsMovementMode(MOVE_Custom) && PlayerCharacter->GetCustomCharacterMovement()->IsCustomMovementMode(CMOVE_Slide);
+	bIsInAir = PlayerCharacter->GetCharacterMovement()->IsFalling();
+
 }
