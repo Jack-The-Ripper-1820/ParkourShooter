@@ -248,10 +248,12 @@ bool UCustomCharacterMovementComponent::IsMovementMode(EMovementMode InMovementM
 void UCustomCharacterMovementComponent::EnterSlide(EMovementMode PrevMode, ECustomMovementMode PrevCustomMode)
 {
 	UE_LOG(LogTemp, Warning, TEXT("Slide Entered"));
+	
 	bWantsToCrouch = true;
-	bOrientRotationToMovement = true;
+	bOrientRotationToMovement = false;
+
+	//CharacterOwner->PlayAnimMontage(SlideMontage);
 	Velocity += Velocity.GetSafeNormal2D() * SlideEnterImpulse;
-	CharacterOwner->PlayAnimMontage(SlideMontage);
 
 	FindFloor(UpdatedComponent->GetComponentLocation(), CurrentFloor, true, NULL);
 }
