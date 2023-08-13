@@ -737,28 +737,28 @@ void UCustomCharacterMovementComponent::PerformDash()
 {
 	UE_LOG(LogTemp, Warning, TEXT("Performing Dash"));
 
-	/*DashStartTime = GetWorld()->GetTimeSeconds();
+	DashStartTime = GetWorld()->GetTimeSeconds();
 
-	SetMovementMode(MOVE_Flying);
+	//SetMovementMode(MOVE_Flying);
 
 	CharacterOwner->PlayAnimMontage(DashMontage);
 
-	DashStartDelegate.Broadcast();*/
-
-	if (PlayerCharacterOwner && PlayerCharacterOwner->IsLocallyControlled()) PlayerCharacterOwner->bIsDashing = true;
-	DashStartTime = GetWorld()->GetTimeSeconds();
-
-	FVector DashDirection = (Acceleration.IsNearlyZero() ? UpdatedComponent->GetForwardVector() : Acceleration).GetSafeNormal2D();
-	//DashDirection = FVector::UpVector * .1f;
-	Velocity = DashImpulse * (DashDirection + FVector::UpVector * .1f);
-
-	FQuat NewRotation = FRotationMatrix::MakeFromXZ(DashDirection, FVector::UpVector).ToQuat();
-	FHitResult Hit;
-	SafeMoveUpdatedComponent(FVector::ZeroVector, NewRotation, false, Hit);
-
-	SetMovementMode(MOVE_Falling);
-
 	DashStartDelegate.Broadcast();
+
+	//if (PlayerCharacterOwner && PlayerCharacterOwner->IsLocallyControlled()) PlayerCharacterOwner->bIsDashing = true;
+	//DashStartTime = GetWorld()->GetTimeSeconds();
+
+	//FVector DashDirection = (Acceleration.IsNearlyZero() ? UpdatedComponent->GetForwardVector() : Acceleration).GetSafeNormal2D();
+	////DashDirection = FVector::UpVector * .1f;
+	//Velocity = DashImpulse * (DashDirection + FVector::UpVector * .1f);
+
+	//FQuat NewRotation = FRotationMatrix::MakeFromXZ(DashDirection, FVector::UpVector).ToQuat();
+	//FHitResult Hit;
+	//SafeMoveUpdatedComponent(FVector::ZeroVector, NewRotation, false, Hit);
+
+	//SetMovementMode(MOVE_Falling);
+
+	//DashStartDelegate.Broadcast();
 }
 
 void UCustomCharacterMovementComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -770,7 +770,7 @@ void UCustomCharacterMovementComponent::GetLifetimeReplicatedProps(TArray<FLifet
 
 void UCustomCharacterMovementComponent::OnRep_Dash()
 {
-	//CharacterOwner->PlayAnimMontage(DashMontage);
+	CharacterOwner->PlayAnimMontage(DashMontage);
 	
 	DashStartDelegate.Broadcast();
 }
