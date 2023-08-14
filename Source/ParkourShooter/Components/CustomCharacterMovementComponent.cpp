@@ -6,6 +6,21 @@
 #include "ParkourShooter/ParkourShooterCharacter.h"
 #include "GameFramework/Character.h"
 #include "Net/UnrealNetwork.h"
+#include "DrawDebugHelpers.h"
+
+// Helper Macros
+#if 1
+float MacroDuration = 2.f;
+#define SCREENLOG(x) GEngine->AddOnScreenDebugMessage(-1, MacroDuration ? MacroDuration : -1.f, FColor::Yellow, x);
+#define POINT(x, c) DrawDebugPoint(GetWorld(), x, 10, c, !MacroDuration, MacroDuration);
+#define LINE(x1, x2, c) DrawDebugLine(GetWorld(), x1, x2, c, !MacroDuration, MacroDuration);
+#define CAPSULE(x, c) DrawDebugCapsule(GetWorld(), x, GetScaleCapsuleHalfHeight(), GetScaleCapsuleRadius(), FQuat::Identity, c, !MacroDuration, MacroDuration);
+#else
+#define SCREENLOG(x)
+#define POINT(x, c)
+#define LINE(x1, x2, c)
+#define CAPSULE(x, c)
+#endif
 
 UCustomCharacterMovementComponent::UCustomCharacterMovementComponent()
 {
@@ -142,7 +157,32 @@ void UCustomCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float
 		}
 	}
 
+	// Try Mantle
+	if (PlayerCharacterOwner->bPressedCustomJump) {
+		UE_LOG(LogTemp, Warning, TEXT("Trying Customjump"));
+
+		if (TryMantle()) {
+			PlayerCharacterOwner->StopJumping();
+		}
+
+		else
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 2.F, FColor::Yellow, TEXT("Failed Mantle, Reverting to jump"));
+			UE_LOG(LogTemp, Warning, TEXT("Failed Mantle, Reverting to jump"));
+			PlayerCharacterOwner->bPressedCustomJump = false;
+			CharacterOwner->bPressedJump = true;
+			CharacterOwner->CheckJumpInput(DeltaSeconds);
+			bOrientRotationToMovement = true;
+		}
+
+	}
+
 	Super::UpdateCharacterStateBeforeMovement(DeltaSeconds);
+}
+
+void UCustomCharacterMovementComponent::UpdateCharacterStateAfterMovement(float DeltaSeconds)
+{
+	Super::UpdateCharacterStateAfterMovement(DeltaSeconds);
 }
 
 void UCustomCharacterMovementComponent::PhysCustom(float deltaTime, int32 Iterations)
@@ -761,6 +801,139 @@ void UCustomCharacterMovementComponent::PerformDash()
 	//DashStartDelegate.Broadcast();
 }
 
+bool UCustomCharacterMovementComponent::TryMantle()
+{
+	SCREENLOG("Tried Mantle")
+	if (!(IsMovementMode(MOVE_Walking) && !IsCrouching()) && !IsMovementMode(MOVE_Falling)) return false;
+
+	// Helper Variables
+	FVector BaseLoc = UpdatedComponent->GetComponentLocation() + FVector::DownVector * GetScaleCapsuleHalfHeight();
+	FVector Fwd = UpdatedComponent->GetForwardVector().GetSafeNormal2D();
+	auto Params = PlayerCharacterOwner->GetIgnoreCharacterParams();
+	float MaxHeight = GetScaleCapsuleHalfHeight() * 2 + MantleReachHeight;
+	float CosMMWSA = FMath::Cos(FMath::DegreesToRadians(MantleMinWallSteepnessAngle));
+	float CosMMSA = FMath::Cos(FMath::DegreesToRadians(MantleMaxSurfaceAngle));
+	float CosMMAA = FMath::Cos(FMath::DegreesToRadians(MantleMaxAlignmentAngle));
+
+	SCREENLOG("Starting Mantle Attempt")
+
+	FHitResult FrontHit;
+	float CheckDistance = FMath::Clamp(Velocity | Fwd, GetScaleCapsuleRadius() + 30, MantleMaxDistance);
+	FVector FrontStart = BaseLoc + FVector::UpVector * (MaxStepHeight - 1);
+	for (int i = 0; i < 6; i++) {
+		LINE(FrontStart, FrontStart + Fwd * CheckDistance, FColor::Red)
+		if (GetWorld()->LineTraceSingleByProfile(FrontHit, FrontStart, FrontStart + Fwd * CheckDistance, "BlockAll", Params)) break;
+		FrontStart += FVector::UpVector * (2.f * GetScaleCapsuleHalfHeight() - (MaxStepHeight - 1)) / 5;
+	}
+
+	if (!FrontHit.IsValidBlockingHit()) return false;
+	float CosWallSteepnessAngle = FrontHit.Normal | FVector::UpVector;
+	if (FMath::Abs(CosWallSteepnessAngle) > CosMMWSA || (Fwd | -FrontHit.Normal) < CosMMAA) return false;
+
+	POINT(FrontHit.Location, FColor::Red);
+
+	// Check Height
+	TArray<FHitResult> HeightHits;
+	FHitResult SurfaceHit;
+	FVector WallUp = FVector::VectorPlaneProject(FVector::UpVector, FrontHit.Normal).GetSafeNormal();
+	float WallCos = FVector::UpVector | FrontHit.Normal;
+	float WallSin = FMath::Sqrt(1 - WallCos * WallCos);
+	FVector TraceStart = FrontHit.Location + Fwd + WallUp * (MaxHeight - (MaxStepHeight - 1)) / WallSin;
+	LINE(TraceStart, FrontHit.Location + Fwd, FColor::Orange)
+	if (!GetWorld()->LineTraceMultiByProfile(HeightHits, TraceStart, FrontHit.Location + Fwd, "BlockAll", Params)) return false;
+	
+	for (const FHitResult& Hit : HeightHits) {
+		if (Hit.IsValidBlockingHit())
+		{
+			SurfaceHit = Hit;
+			break;
+		}
+	}
+	if (!SurfaceHit.IsValidBlockingHit() || (SurfaceHit.Normal | FVector::UpVector) < CosMMSA) return false;
+	
+	float Height = (SurfaceHit.Location - BaseLoc) | FVector::UpVector;
+
+	SCREENLOG(FString::Printf(TEXT("Height: %f"), Height))
+	POINT(SurfaceHit.Location, FColor::Blue);
+
+	if (Height > MaxHeight) return false;
+
+
+	// Check Clearance
+	float SurfaceCos = FVector::UpVector | SurfaceHit.Normal;
+	float SurfaceSin = FMath::Sqrt(1 - SurfaceCos * SurfaceCos);
+	FVector ClearCapLoc = SurfaceHit.Location + Fwd * GetScaleCapsuleRadius() + FVector::UpVector * (GetScaleCapsuleHalfHeight() + 1 + GetScaleCapsuleRadius() * 2 * SurfaceSin);
+	FCollisionShape CapShape = FCollisionShape::MakeCapsule(GetScaleCapsuleRadius(), GetScaleCapsuleHalfHeight());
+
+	if (GetWorld()->OverlapAnyTestByProfile(ClearCapLoc, FQuat::Identity, "BlockAll", CapShape, Params)) {
+		CAPSULE(ClearCapLoc, FColor::Red)
+			return false;
+	}
+	else {
+		CAPSULE(ClearCapLoc, FColor::Green)
+	}
+
+	SCREENLOG("Can Mantle")
+
+	//	// Mantle Selection
+	//	FVector ShortMantleTarget = GetMantleStartLocation(FrontHit, SurfaceHit, false);
+	//FVector TallMantleTarget = GetMantleStartLocation(FrontHit, SurfaceHit, true);
+
+	//bool bTallMantle = false;
+	//if (IsMovementMode(MOVE_Walking) && Height > GetScaleCapsuleHalfHeight() * 2)
+	//	bTallMantle = true;
+	//else if (IsMovementMode(MOVE_Falling) && (Velocity | FVector::UpVector) < 0)
+	//{
+	//	if (!GetWorld()->OverlapAnyTestByProfile(TallMantleTarget, FQuat::Identity, "BlockAll", CapShape, Params))
+	//		bTallMantle = true;
+	//}
+	//FVector TransitionTarget = bTallMantle ? TallMantleTarget : ShortMantleTarget;
+	//CAPSULE(TransitionTarget, FColor::Yellow)
+
+	//	// Perform Transition to Mantle
+	//	CAPSULE(UpdatedComponent->GetComponentLocation(), FColor::Red)
+
+	//float UpSpeed = Velocity | FVector::UpVector;
+	//float TransDistance = FVector::Dist(TransitionTarget, UpdatedComponent->GetComponentLocation());
+
+	//TransitionQueuedMontageSpeed = FMath::GetMappedRangeValueClamped(FVector2D(-500, 750), FVector2D(.9f, 1.2f), UpSpeed);
+	//TransitionRMS.Reset();
+	//TransitionRMS = MakeShared<FRootMotionSource_MoveToForce>();
+	//TransitionRMS->AccumulateMode = ERootMotionAccumulateMode::Override;
+
+	//TransitionRMS->Duration = FMath::Clamp(TransDistance / 500.f, .1f, .25f);
+	//SCREENLOG(FString::Printf(TEXT("Duration: %f"), TransitionRMS->Duration))
+	//TransitionRMS->StartLocation = UpdatedComponent->GetComponentLocation();
+	//TransitionRMS->TargetLocation = TransitionTarget;
+
+	//// Apply Transition Root Motion Source
+	//Velocity = FVector::ZeroVector;
+	//SetMovementMode(MOVE_Flying);
+	//TransitionRMS_ID = ApplyRootMotionSource(TransitionRMS);
+	//TransitionName = "Mantle";
+
+	//// Animations
+	//if (bTallMantle)
+	//{
+	//	TransitionQueuedMontage = TallMantleMontage;
+	//	CharacterOwner->PlayAnimMontage(TransitionTallMantleMontage, 1 / TransitionRMS->Duration);
+	//	if (IsServer()) Proxy_bTallMantle = !Proxy_bTallMantle;
+	//}
+	//else
+	//{
+	//	TransitionQueuedMontage = ShortMantleMontage;
+	//	CharacterOwner->PlayAnimMontage(TransitionShortMantleMontage, 1 / TransitionRMS->Duration);
+	//	if (IsServer()) Proxy_bShortMantle = !Proxy_bShortMantle;
+	//}
+
+	return true;
+}
+
+FVector UCustomCharacterMovementComponent::GetMantleStartLocation(FHitResult FromHit, FHitResult SurfaceHit, bool bTallMantle) const
+{
+	return FVector::ZeroVector;
+}
+
 void UCustomCharacterMovementComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -773,6 +946,29 @@ void UCustomCharacterMovementComponent::OnRep_Dash()
 	CharacterOwner->PlayAnimMontage(DashMontage);
 	
 	DashStartDelegate.Broadcast();
+}
+
+void UCustomCharacterMovementComponent::OnRep_ShortMantle()
+{
+}
+
+void UCustomCharacterMovementComponent::OnRep_TallMantle()
+{
+}
+
+bool UCustomCharacterMovementComponent::IsServer() const
+{
+	return CharacterOwner->HasAuthority();
+}
+
+float UCustomCharacterMovementComponent::GetScaleCapsuleRadius() const
+{
+	return CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleRadius();
+}
+
+float UCustomCharacterMovementComponent::GetScaleCapsuleHalfHeight() const
+{
+	return CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 }
 
 UCustomCharacterMovementComponent::FSavedMove_Custom::FSavedMove_Custom()
@@ -806,6 +1002,12 @@ void UCustomCharacterMovementComponent::FSavedMove_Custom::Clear()
 
 	Saved_bWantsToProne = 0;
 	Saved_bPrevWantsToCrouch = 0;
+
+	Saved_bHadAnimRootMotion = 0;
+	Saved_bTransitionFinished = 0;
+
+	Saved_bPressedCustomJump = 0;
+
 }
 
 uint8 UCustomCharacterMovementComponent::FSavedMove_Custom::GetCompressedFlags() const
@@ -814,6 +1016,8 @@ uint8 UCustomCharacterMovementComponent::FSavedMove_Custom::GetCompressedFlags()
 
 	if (Saved_bWantsToSprint) Result |= FLAG_Sprint;
 	if (Saved_bWantsToDash) Result |= FLAG_Dash;
+	if (Saved_bPressedCustomJump) Result |= FLAG_JumpPressed;
+
 
 	return Result;
 }
@@ -828,6 +1032,10 @@ void UCustomCharacterMovementComponent::FSavedMove_Custom::SetMoveFor(ACharacter
 	Saved_bPrevWantsToCrouch = CharacterMovement->Safe_bPrevWantsToCrouch;
 	Saved_bWantsToProne = CharacterMovement->Safe_bWantsToProne;
 	Saved_bWantsToDash = CharacterMovement->Safe_bWantsToDash;
+	Saved_bHadAnimRootMotion = CharacterMovement->Safe_bHadAnimRootMotion;
+	Saved_bTransitionFinished = CharacterMovement->Safe_bTransitionFinished;
+	Saved_bPressedCustomJump = CharacterMovement->PlayerCharacterOwner->bPressedCustomJump;
+
 }
 
 void UCustomCharacterMovementComponent::FSavedMove_Custom::PrepMoveFor(ACharacter* C)

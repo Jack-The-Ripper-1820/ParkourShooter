@@ -96,14 +96,15 @@ void AParkourShooterCharacter::Jump()
 
 	UE_LOG(LogTemp, Warning, TEXT("Pressed Jump: %d"), bPressedJump);
 
-	//bPressedJump = false;
+	bPressedCustomJump = true;
+	bPressedJump = false;
 }
 
 void AParkourShooterCharacter::StopJumping()
 {
 	Super::StopJumping();
 
-	bCustomJump = false;
+	bPressedCustomJump = false;
 }
 
 void AParkourShooterCharacter::BeginPlay()

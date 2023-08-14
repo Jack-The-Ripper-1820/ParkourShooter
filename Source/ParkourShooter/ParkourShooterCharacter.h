@@ -62,7 +62,7 @@ public:
 	bool bIsSprinting = false;
 	//bool bIsCrouched = false;
 	bool bIsProne = false;
-	bool bCustomJump;
+	bool bPressedCustomJump;
 	bool bIsDashing = false;
 
 	virtual void Jump() override;

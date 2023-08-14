@@ -52,6 +52,10 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 
 			uint8 Saved_bPressedCustomJump : 1;
 
+			uint8 Saved_bHadAnimRootMotion : 1;
+			
+			uint8 Saved_bTransitionFinished : 1;
+
 		public:
 			FSavedMove_Custom();
 
@@ -98,6 +102,22 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* DashMontage;
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* SlideMontage;
 
+	// Mantke
+	// Mantle
+	UPROPERTY(EditDefaultsOnly) float MantleMaxDistance = 200;
+	UPROPERTY(EditDefaultsOnly) float MantleReachHeight = 50;
+	UPROPERTY(EditDefaultsOnly) float MinMantleDepth = 30;
+	UPROPERTY(EditDefaultsOnly) float MantleMinWallSteepnessAngle = 75;
+	UPROPERTY(EditDefaultsOnly) float MantleMaxSurfaceAngle = 40;
+	UPROPERTY(EditDefaultsOnly) float MantleMaxAlignmentAngle = 45;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* TallMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionTallMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* ProxyTallMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* ShortMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionShortMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* ProxyShortMantleMontage;
+
+
 	UPROPERTY(Transient) class AParkourShooterCharacter* PlayerCharacterOwner;
 
 	bool Safe_bWantsToSprint;
@@ -106,6 +126,16 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 	bool Safe_bWantsToDash;
 
 	bool Safe_bHadAnimRootMotion;
+	bool Safe_bTransitionFinished;
+
+	TSharedPtr<FRootMotionSource_MoveToForce> TransitionRMS;
+	
+	UPROPERTY(Transient) UAnimMontage* TransitionQueuedMontage;
+
+	FString TransitionName;
+
+	float TransitionQueuedMontageSpeed;
+	int TransitionRMS_ID;
 
 	float DashStartTime;
 
@@ -116,6 +146,9 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 
 	// Replication
 	UPROPERTY(ReplicatedUsing = OnRep_Dash) bool Proxy_bDash;
+
+	UPROPERTY(ReplicatedUsing = OnRep_ShortMantle) bool Proxy_bShortMantle;
+	UPROPERTY(ReplicatedUsing = OnRep_TallMantle) bool Proxy_bTallMantle;
 
 	// Delegates
 public:
@@ -137,7 +170,10 @@ protected:
 	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
 	virtual void OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity) override;
 	virtual void InitializeComponent() override;
+
 	virtual void UpdateCharacterStateBeforeMovement(float DeltaSeconds) override;
+	virtual void UpdateCharacterStateAfterMovement(float DeltaSeconds) override;
+
 	virtual void PhysCustom(float deltaTime, int32 Iterations) override;
 	virtual void OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode) override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -183,10 +219,22 @@ private:
 	bool CanDash() const;
 	void PerformDash();
 
+	// Mantle
+private:
+	bool TryMantle();
+	FVector GetMantleStartLocation(FHitResult FromHit, FHitResult SurfaceHit, bool bTallMantle) const;
+
 public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:
 	UFUNCTION() void OnRep_Dash();
+	UFUNCTION() void OnRep_ShortMantle();
+	UFUNCTION() void OnRep_TallMantle();
+
+public:
+	bool IsServer() const;
+	float GetScaleCapsuleRadius() const;
+	float GetScaleCapsuleHalfHeight() const;
 
 };
