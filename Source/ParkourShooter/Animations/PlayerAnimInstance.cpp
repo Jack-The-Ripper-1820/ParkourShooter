@@ -31,5 +31,6 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float Deltatime)
 
 	bIsSliding = PlayerCharacter->GetCustomCharacterMovement()->IsMovementMode(MOVE_Custom) && PlayerCharacter->GetCustomCharacterMovement()->IsCustomMovementMode(CMOVE_Slide);
 	bIsInAir = PlayerCharacter->GetCharacterMovement()->IsFalling();
+	bIsWallRunning = PlayerCharacter->GetCustomCharacterMovement()->IsWallRunning();
 
 }

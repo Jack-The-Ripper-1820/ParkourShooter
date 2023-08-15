@@ -14,7 +14,7 @@ float MacroDuration = 2.f;
 #define SCREENLOG(x) GEngine->AddOnScreenDebugMessage(-1, MacroDuration ? MacroDuration : -1.f, FColor::Yellow, x);
 #define POINT(x, c) DrawDebugPoint(GetWorld(), x, 10, c, !MacroDuration, MacroDuration);
 #define LINE(x1, x2, c) DrawDebugLine(GetWorld(), x1, x2, c, !MacroDuration, MacroDuration);
-#define CAPSULE(x, c) DrawDebugCapsule(GetWorld(), x, GetScaleCapsuleHalfHeight(), GetScaleCapsuleRadius(), FQuat::Identity, c, !MacroDuration, MacroDuration);
+#define CAPSULE(x, c) DrawDebugCapsule(GetWorld(), x, GetScaledCapsuleHalfHeight(), GetScaledCapsuleRadius(), FQuat::Identity, c, !MacroDuration, MacroDuration);
 #else
 #define SCREENLOG(x)
 #define POINT(x, c)
@@ -64,9 +64,11 @@ float UCustomCharacterMovementComponent::GetMaxSpeed() const
 		return MaxSlideSpeed;
 	case CMOVE_Prone:
 		return MaxProneSpeed;
+	case CMOVE_WallRun:
+		return MaxWallRunSpeed;
 	default:
 		UE_LOG(LogTemp, Fatal, TEXT("Invalid Movement Mode"))
-			return -1.f;
+		return -1.f;
 	}
 }
 
@@ -80,10 +82,38 @@ float UCustomCharacterMovementComponent::GetMaxBrakingDeceleration() const
 		return BrakingDecelerationSliding;
 	case CMOVE_Prone:
 		return BrakingDecelerationProning;
+	case CMOVE_WallRun:
+		return 0.f;
 	default:
 		UE_LOG(LogTemp, Fatal, TEXT("Invalid Movement Mode"))
-			return -1.f;
+		return -1.f;
 	}
+}
+
+bool UCustomCharacterMovementComponent::CanAttemptJump() const
+{
+	return Super::CanAttemptJump() || IsWallRunning();
+}
+
+bool UCustomCharacterMovementComponent::DoJump(bool bReplayingMoves)
+{
+	bool bWasWallRunning = IsWallRunning();
+
+	if (Super::DoJump(bReplayingMoves)) {
+		if (bWasWallRunning) {
+			FVector Start = UpdatedComponent->GetComponentLocation();
+			FVector CastDelta = UpdatedComponent->GetRightVector() * GetScaledCapsuleRadius() * 2;
+			FVector End = Safe_bWallRunIsRight ? Start + CastDelta : Start - CastDelta;
+			auto Params = PlayerCharacterOwner->GetIgnoreCharacterParams();
+			FHitResult WallHit;
+			GetWorld()->LineTraceSingleByProfile(WallHit, Start, End, "BlockAll", Params);
+			Velocity += WallHit.Normal * WallEjectForce;
+		}
+
+		return true;
+	}
+
+	return false;
 }
 
 void UCustomCharacterMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
@@ -198,6 +228,11 @@ void UCustomCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float
 		Safe_bTransitionFinished = false;
 	}
 
+	// Wall Run
+	if (IsFalling()) {
+		TryWallRun();
+	}
+
 	Super::UpdateCharacterStateBeforeMovement(DeltaSeconds);
 }
 
@@ -229,6 +264,9 @@ void UCustomCharacterMovementComponent::PhysCustom(float deltaTime, int32 Iterat
 	case CMOVE_Prone:
 		PhysProne(deltaTime, Iterations);
 		break;
+	case CMOVE_WallRun:
+		PhysWallRun(deltaTime, Iterations);
+		break;
 	default:
 		UE_LOG(LogTemp, Fatal, TEXT("Invalid Movement Mode"));
 	}
@@ -243,10 +281,19 @@ void UCustomCharacterMovementComponent::OnMovementModeChanged(EMovementMode Prev
 
 	if (IsCustomMovementMode(CMOVE_Slide)) EnterSlide(PreviousMovementMode, (ECustomMovementMode)PreviousCustomMode);
 	if (IsCustomMovementMode(CMOVE_Prone)) EnterProne(PreviousMovementMode, (ECustomMovementMode)PreviousCustomMode);
+	if (IsCustomMovementMode(CMOVE_Prone)) EnterProne(PreviousMovementMode, (ECustomMovementMode)PreviousCustomMode);
 
-	if (IsFalling())
-	{
+	if (IsFalling()) {
 		bOrientRotationToMovement = true;
+	}
+
+	if (IsWallRunning() && GetOwnerRole() == ROLE_SimulatedProxy) {
+
+		FVector Start = UpdatedComponent->GetComponentLocation();
+		FVector End = Start + UpdatedComponent->GetRightVector() * GetScaledCapsuleRadius() * 2;
+		auto Params = PlayerCharacterOwner->GetIgnoreCharacterParams();
+		FHitResult WallHit;
+		Safe_bWallRunIsRight = GetWorld()->LineTraceSingleByProfile(WallHit, Start, End, "BlockAll", Params);
 	}
 }
 
@@ -840,10 +887,10 @@ bool UCustomCharacterMovementComponent::TryMantle()
 	if (!(IsMovementMode(MOVE_Walking) && !IsCrouching()) && !IsMovementMode(MOVE_Falling)) return false;
 
 	// Helper Variables
-	FVector BaseLoc = UpdatedComponent->GetComponentLocation() + FVector::DownVector * GetScaleCapsuleHalfHeight();
+	FVector BaseLoc = UpdatedComponent->GetComponentLocation() + FVector::DownVector * GetScaledCapsuleHalfHeight();
 	FVector Fwd = UpdatedComponent->GetForwardVector().GetSafeNormal2D();
 	auto Params = PlayerCharacterOwner->GetIgnoreCharacterParams();
-	float MaxHeight = GetScaleCapsuleHalfHeight() * 2 + MantleReachHeight;
+	float MaxHeight = GetScaledCapsuleHalfHeight() * 2 + MantleReachHeight;
 	float CosMMWSA = FMath::Cos(FMath::DegreesToRadians(MantleMinWallSteepnessAngle));
 	float CosMMSA = FMath::Cos(FMath::DegreesToRadians(MantleMaxSurfaceAngle));
 	float CosMMAA = FMath::Cos(FMath::DegreesToRadians(MantleMaxAlignmentAngle));
@@ -851,12 +898,12 @@ bool UCustomCharacterMovementComponent::TryMantle()
 	SCREENLOG("Starting Mantle Attempt")
 
 	FHitResult FrontHit;
-	float CheckDistance = FMath::Clamp(Velocity | Fwd, GetScaleCapsuleRadius() + 30, MantleMaxDistance);
+	float CheckDistance = FMath::Clamp(Velocity | Fwd, GetScaledCapsuleRadius() + 30, MantleMaxDistance);
 	FVector FrontStart = BaseLoc + FVector::UpVector * (MaxStepHeight - 1);
 	for (int i = 0; i < 6; i++) {
 		LINE(FrontStart, FrontStart + Fwd * CheckDistance, FColor::Red)
 		if (GetWorld()->LineTraceSingleByProfile(FrontHit, FrontStart, FrontStart + Fwd * CheckDistance, "BlockAll", Params)) break;
-		FrontStart += FVector::UpVector * (2.f * GetScaleCapsuleHalfHeight() - (MaxStepHeight - 1)) / 5;
+		FrontStart += FVector::UpVector * (2.f * GetScaledCapsuleHalfHeight() - (MaxStepHeight - 1)) / 5;
 	}
 
 	if (!FrontHit.IsValidBlockingHit()) return false;
@@ -895,8 +942,8 @@ bool UCustomCharacterMovementComponent::TryMantle()
 	// Check Clearance
 	float SurfaceCos = FVector::UpVector | SurfaceHit.Normal;
 	float SurfaceSin = FMath::Sqrt(1 - SurfaceCos * SurfaceCos);
-	FVector ClearCapLoc = SurfaceHit.Location + Fwd * GetScaleCapsuleRadius() + FVector::UpVector * (GetScaleCapsuleHalfHeight() + 1 + GetScaleCapsuleRadius() * 2 * SurfaceSin);
-	FCollisionShape CapShape = FCollisionShape::MakeCapsule(GetScaleCapsuleRadius(), GetScaleCapsuleHalfHeight());
+	FVector ClearCapLoc = SurfaceHit.Location + Fwd * GetScaledCapsuleRadius() + FVector::UpVector * (GetScaledCapsuleHalfHeight() + 1 + GetScaledCapsuleRadius() * 2 * SurfaceSin);
+	FCollisionShape CapShape = FCollisionShape::MakeCapsule(GetScaledCapsuleRadius(), GetScaledCapsuleHalfHeight());
 
 	if (GetWorld()->OverlapAnyTestByProfile(ClearCapLoc, FQuat::Identity, "BlockAll", CapShape, Params)) {
 		CAPSULE(ClearCapLoc, FColor::Red)
@@ -914,7 +961,7 @@ bool UCustomCharacterMovementComponent::TryMantle()
 
 	bool bTallMantle = false;
 	
-	if (IsMovementMode(MOVE_Walking) && Height > GetScaleCapsuleHalfHeight() * 2)
+	if (IsMovementMode(MOVE_Walking) && Height > GetScaledCapsuleHalfHeight() * 2)
 		bTallMantle = true;
 
 	else if (IsMovementMode(MOVE_Falling) && (Velocity | FVector::UpVector) < 0) {
@@ -968,17 +1015,153 @@ bool UCustomCharacterMovementComponent::TryMantle()
 FVector UCustomCharacterMovementComponent::GetMantleStartLocation(FHitResult FrontHit, FHitResult SurfaceHit, bool bTallMantle) const
 {
 	float CosWallSteepnessAngle = FrontHit.Normal | FVector::UpVector;
-	float DownDistance = bTallMantle ? GetScaleCapsuleHalfHeight() * 2.f : MaxStepHeight - 1;
+	float DownDistance = bTallMantle ? GetScaledCapsuleHalfHeight() * 2.f : MaxStepHeight - 1;
 	FVector EdgeTangent = FVector::CrossProduct(SurfaceHit.Normal, FrontHit.Normal).GetSafeNormal();
 
 	FVector MantleStart = SurfaceHit.Location;
-	MantleStart += FrontHit.Normal.GetSafeNormal2D() * (2.f + GetScaleCapsuleRadius());
-	MantleStart += UpdatedComponent->GetForwardVector().GetSafeNormal2D().ProjectOnTo(EdgeTangent) * GetScaleCapsuleRadius() * .3f;
-	MantleStart += FVector::UpVector * GetScaleCapsuleHalfHeight();
+	MantleStart += FrontHit.Normal.GetSafeNormal2D() * (2.f + GetScaledCapsuleRadius());
+	MantleStart += UpdatedComponent->GetForwardVector().GetSafeNormal2D().ProjectOnTo(EdgeTangent) * GetScaledCapsuleRadius() * .3f;
+	MantleStart += FVector::UpVector * GetScaledCapsuleHalfHeight();
 	MantleStart += FVector::DownVector * DownDistance;
 	MantleStart += FrontHit.Normal.GetSafeNormal2D() * CosWallSteepnessAngle * DownDistance;
 
 	return MantleStart;
+}
+
+bool UCustomCharacterMovementComponent::TryWallRun()
+{
+	if (!IsFalling()) return false;
+	if (Velocity.SizeSquared2D() < pow(MinWallRunSpeed, 2)) return false;
+	//if (Velocity.Z < -MaxVerticalWallRunSpeed) return false;
+	
+	FVector Start = UpdatedComponent->GetComponentLocation();
+	FVector LeftEnd = Start - UpdatedComponent->GetRightVector() * GetScaledCapsuleRadius() * 2;
+	FVector RightEnd = Start + UpdatedComponent->GetRightVector() * GetScaledCapsuleRadius() * 2;
+	auto Params = PlayerCharacterOwner->GetIgnoreCharacterParams();
+	FHitResult WallHit, FloorHit;
+
+	// Check Player Height
+	if (GetWorld()->LineTraceSingleByProfile(FloorHit, Start, Start + FVector::DownVector * (GetScaledCapsuleHalfHeight() + MinWallRunHeight), "BlockAll", Params)) {
+		return false;
+	}
+
+	// Left Wall Run
+	GetWorld()->LineTraceSingleByProfile(WallHit, Start, LeftEnd, "BlockAll", Params);
+	
+	if (WallHit.IsValidBlockingHit() && (Velocity | WallHit.Normal) < 0) {
+		Safe_bWallRunIsRight = false;
+	}
+
+	// Right Wall Run
+	else {
+		GetWorld()->LineTraceSingleByProfile(WallHit, Start, RightEnd, "BlockAll", Params);
+		if (WallHit.IsValidBlockingHit() && (Velocity | WallHit.Normal) < 0) {
+			Safe_bWallRunIsRight = true;
+		}
+		else {
+			return false;
+		}
+	}
+
+	FVector ProjectedVelocity = FVector::VectorPlaneProject(Velocity, WallHit.Normal);
+	if (ProjectedVelocity.SizeSquared2D() < pow(MinWallRunSpeed, 2)) return false;
+
+	// Passed all conditions
+	Velocity = ProjectedVelocity;
+	Velocity.Z = FMath::Clamp(Velocity.Z, 0.f, MaxVerticalWallRunSpeed);
+	SetMovementMode(MOVE_Custom, CMOVE_WallRun);
+	SCREENLOG("Starting WallRun")
+	return true;
+}
+
+void UCustomCharacterMovementComponent::PhysWallRun(float deltaTime, int32 Iterations)
+{
+	if (deltaTime < MIN_TICK_TIME) {
+		return;
+	}
+
+	if (!CharacterOwner || (!CharacterOwner->Controller && !bRunPhysicsWithNoController && !HasAnimRootMotion() && !CurrentRootMotion.HasOverrideVelocity() && (CharacterOwner->GetLocalRole() != ROLE_SimulatedProxy))) {
+		Acceleration = FVector::ZeroVector;
+		Velocity = FVector::ZeroVector;
+		return;
+	}
+
+	bJustTeleported = false;
+	float remainingTime = deltaTime;
+	// Perform the move
+	while ((remainingTime >= MIN_TICK_TIME) && (Iterations < MaxSimulationIterations) && CharacterOwner && (CharacterOwner->Controller || bRunPhysicsWithNoController || (CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy))) {
+		Iterations++;
+		bJustTeleported = false;
+		const float timeTick = GetSimulationTimeStep(remainingTime, Iterations);
+		remainingTime -= timeTick;
+		const FVector OldLocation = UpdatedComponent->GetComponentLocation();
+
+		FVector Start = UpdatedComponent->GetComponentLocation();
+		FVector CastDelta = UpdatedComponent->GetRightVector() * GetScaledCapsuleRadius() * 2;
+		FVector End = Safe_bWallRunIsRight ? Start + CastDelta : Start - CastDelta;
+		auto Params = PlayerCharacterOwner->GetIgnoreCharacterParams();
+		float SinDisengageAngle = FMath::Sin(FMath::DegreesToRadians(WallRunDisengageAngle));
+		FHitResult WallHit;
+
+		GetWorld()->LineTraceSingleByProfile(WallHit, Start, End, "BlockAll", Params);
+		bool bWantsToDisengage = WallHit.IsValidBlockingHit() && !Acceleration.IsNearlyZero() && (Acceleration.GetSafeNormal() | WallHit.Normal) > SinDisengageAngle;
+		
+		if (!WallHit.IsValidBlockingHit() || bWantsToDisengage) {
+			SetMovementMode(MOVE_Falling);
+			StartNewPhysics(remainingTime, Iterations);
+			return;
+		}
+		// Clamp Acceleration
+		Acceleration = FVector::VectorPlaneProject(Acceleration, WallHit.Normal);
+		Acceleration.Z = 0.f;
+		
+		// Apply acceleration
+		CalcVelocity(timeTick, 0.f, false, GetMaxBrakingDeceleration());
+		Velocity = FVector::VectorPlaneProject(Velocity, WallHit.Normal);
+		float TangentAccel = Acceleration.GetSafeNormal() | Velocity.GetSafeNormal2D();
+		bool bVelUp = Velocity.Z > 0.f;
+		Velocity.Z += GetGravityZ() * WallRunGravityScaleCurve->GetFloatValue(bVelUp ? 0.f : TangentAccel) * timeTick;
+		
+		if (Velocity.SizeSquared2D() < pow(MinWallRunSpeed, 2) || Velocity.Z < -MaxVerticalWallRunSpeed) {
+			SetMovementMode(MOVE_Falling);
+			StartNewPhysics(remainingTime, Iterations);
+			return;
+		}
+
+		// Compute move parameters
+		const FVector Delta = timeTick * Velocity; // dx = v * dt
+		const bool bZeroDelta = Delta.IsNearlyZero();
+		if (bZeroDelta) {
+			remainingTime = 0.f;
+		}
+
+		else {
+			FHitResult Hit;
+			SafeMoveUpdatedComponent(Delta, UpdatedComponent->GetComponentQuat(), true, Hit);
+			FVector WallAttractionDelta = -WallHit.Normal * WallMagnetismForce * timeTick;
+			SafeMoveUpdatedComponent(WallAttractionDelta, UpdatedComponent->GetComponentQuat(), true, Hit);
+		}
+
+		if (UpdatedComponent->GetComponentLocation() == OldLocation) {
+			remainingTime = 0.f;
+			break;
+		}
+
+		Velocity = (UpdatedComponent->GetComponentLocation() - OldLocation) / timeTick; // v = dx / dt
+	}
+
+
+	FVector Start = UpdatedComponent->GetComponentLocation();
+	FVector CastDelta = UpdatedComponent->GetRightVector() * GetScaledCapsuleRadius() * 2;
+	FVector End = Safe_bWallRunIsRight ? Start + CastDelta : Start - CastDelta;
+	auto Params = PlayerCharacterOwner->GetIgnoreCharacterParams();
+	FHitResult FloorHit, WallHit;
+	GetWorld()->LineTraceSingleByProfile(WallHit, Start, End, "BlockAll", Params);
+	GetWorld()->LineTraceSingleByProfile(FloorHit, Start, Start + FVector::DownVector * (GetScaledCapsuleHalfHeight() + MinWallRunHeight * .5f), "BlockAll", Params);
+	
+	if (FloorHit.IsValidBlockingHit() || !WallHit.IsValidBlockingHit() || Velocity.SizeSquared2D() < pow(MinWallRunSpeed, 2)) {
+		SetMovementMode(MOVE_Falling);
+	}
 }
 
 void UCustomCharacterMovementComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -1012,12 +1195,12 @@ bool UCustomCharacterMovementComponent::IsServer() const
 	return CharacterOwner->HasAuthority();
 }
 
-float UCustomCharacterMovementComponent::GetScaleCapsuleRadius() const
+float UCustomCharacterMovementComponent::GetScaledCapsuleRadius() const
 {
 	return CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleRadius();
 }
 
-float UCustomCharacterMovementComponent::GetScaleCapsuleHalfHeight() const
+float UCustomCharacterMovementComponent::GetScaledCapsuleHalfHeight() const
 {
 	return CharacterOwner->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 }
@@ -1041,6 +1224,10 @@ bool UCustomCharacterMovementComponent::FSavedMove_Custom::CanCombineWith(const 
 		return false;
 	}
 
+	if (Saved_bWallRunIsRight != NewCustomMove->Saved_bWallRunIsRight) {
+		return false;
+	}
+
 	return FSavedMove_Character::CanCombineWith(NewMove, InCharacter, MaxDelta);
 }
 
@@ -1058,7 +1245,8 @@ void UCustomCharacterMovementComponent::FSavedMove_Custom::Clear()
 	Saved_bTransitionFinished = 0;
 
 	Saved_bPressedCustomJump = 0;
-
+	
+	Saved_bWallRunIsRight = 0;
 }
 
 uint8 UCustomCharacterMovementComponent::FSavedMove_Custom::GetCompressedFlags() const
@@ -1086,6 +1274,7 @@ void UCustomCharacterMovementComponent::FSavedMove_Custom::SetMoveFor(ACharacter
 	Saved_bHadAnimRootMotion = CharacterMovement->Safe_bHadAnimRootMotion;
 	Saved_bTransitionFinished = CharacterMovement->Safe_bTransitionFinished;
 	Saved_bPressedCustomJump = CharacterMovement->PlayerCharacterOwner->bPressedCustomJump;
+	Saved_bWallRunIsRight = CharacterMovement->Safe_bWallRunIsRight;
 
 }
 
@@ -1099,6 +1288,8 @@ void UCustomCharacterMovementComponent::FSavedMove_Custom::PrepMoveFor(ACharacte
 	CharacterMovement->Safe_bPrevWantsToCrouch = Saved_bPrevWantsToCrouch;
 	CharacterMovement->Safe_bWantsToProne = Saved_bWantsToProne;
 	CharacterMovement->Safe_bWantsToDash = Saved_bWantsToDash;
+	CharacterMovement->Safe_bWallRunIsRight = Saved_bWallRunIsRight;
+
 }
 
 UCustomCharacterMovementComponent::FNetworkPredictionData_Client_Custom::FNetworkPredictionData_Client_Custom(const UCharacterMovementComponent& ClientMovement)

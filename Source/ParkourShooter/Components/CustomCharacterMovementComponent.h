@@ -19,7 +19,7 @@ enum ECustomMovementMode
 	CMOVE_Slide UMETA(DisplayName = "Slide"),
 	CMOVE_Prone UMETA(DisplayName = "Prone"),
 	CMOVE_Dash UMETA(DisplayName = "Dash"),
-	CMOVE_Climb	UMETA(DisplayName = "Climb"),
+	CMOVE_WallRun UMETA(DisplayName = "WallRun"),
 	CMOVE_MAX UMETA(Hidden),
 };
 
@@ -55,6 +55,9 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 			uint8 Saved_bHadAnimRootMotion : 1;
 			
 			uint8 Saved_bTransitionFinished : 1;
+
+			uint8 Saved_bWallRunIsRight : 1;
+
 
 		public:
 			FSavedMove_Custom();
@@ -102,7 +105,6 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* DashMontage;
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* SlideMontage;
 
-	// Mantke
 	// Mantle
 	UPROPERTY(EditDefaultsOnly) float MantleMaxDistance = 200;
 	UPROPERTY(EditDefaultsOnly) float MantleReachHeight = 50;
@@ -117,6 +119,15 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionShortMantleMontage;
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* ProxyShortMantleMontage;
 
+	// Wall Run
+	UPROPERTY(EditDefaultsOnly) float MinWallRunSpeed = 200.f;
+	UPROPERTY(EditDefaultsOnly) float MaxWallRunSpeed = 800.f;
+	UPROPERTY(EditDefaultsOnly) float MaxVerticalWallRunSpeed = 200.f;
+	UPROPERTY(EditDefaultsOnly) float WallRunDisengageAngle = 75;
+	UPROPERTY(EditDefaultsOnly) float WallMagnetismForce = 200.f;
+	UPROPERTY(EditDefaultsOnly) float MinWallRunHeight = 50.f;
+	UPROPERTY(EditDefaultsOnly) UCurveFloat* WallRunGravityScaleCurve;
+	UPROPERTY(EditDefaultsOnly) float WallEjectForce = 300.f;
 
 	UPROPERTY(Transient) class AParkourShooterCharacter* PlayerCharacterOwner;
 
@@ -139,10 +150,10 @@ class PARKOURSHOOTER_API UCustomCharacterMovementComponent : public UCharacterMo
 
 	float DashStartTime;
 
-
 	FTimerHandle TimerHandle_EnterProne;
 	FTimerHandle TimerHandle_DashCooldown;
 
+	bool Safe_bWallRunIsRight;
 
 	// Replication
 	UPROPERTY(ReplicatedUsing = OnRep_Dash) bool Proxy_bDash;
@@ -166,6 +177,9 @@ public:
 	virtual float GetMaxSpeed() const override;
 	virtual float GetMaxBrakingDeceleration() const override;
 
+	virtual bool CanAttemptJump() const override;
+	virtual bool DoJump(bool bReplayingMoves) override;
+
 protected:
 	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
 	virtual void OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity) override;
@@ -186,8 +200,10 @@ public:
 	UFUNCTION(BlueprintCallable) void CrouchReleased();
 	UFUNCTION(BlueprintCallable) void DashPressed();
 	UFUNCTION(BlueprintCallable) void DashReleased();
-	UFUNCTION(BlueprintPure) bool IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const;
-	UFUNCTION(BlueprintPure) bool IsMovementMode(EMovementMode InMovementMode) const;
+	UFUNCTION(BlueprintCallable) bool IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const;
+	UFUNCTION(BlueprintCallable) bool IsMovementMode(EMovementMode InMovementMode) const;
+	UFUNCTION(BlueprintCallable) FORCEINLINE bool IsWallRunning() const { return IsCustomMovementMode(CMOVE_WallRun); }
+	UFUNCTION(BlueprintCallable) FORCEINLINE bool WallRunningIsRight() const { return Safe_bWallRunIsRight; }
 
 
 	// Slide
@@ -224,6 +240,11 @@ private:
 	bool TryMantle();
 	FVector GetMantleStartLocation(FHitResult FromHit, FHitResult SurfaceHit, bool bTallMantle) const;
 
+	// Wall Run
+private:
+	bool TryWallRun();
+	void PhysWallRun(float deltaTime, int32 Iterations);
+
 public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -234,7 +255,7 @@ private:
 
 public:
 	bool IsServer() const;
-	float GetScaleCapsuleRadius() const;
-	float GetScaleCapsuleHalfHeight() const;
+	float GetScaledCapsuleRadius() const;
+	float GetScaledCapsuleHalfHeight() const;
 
 };
