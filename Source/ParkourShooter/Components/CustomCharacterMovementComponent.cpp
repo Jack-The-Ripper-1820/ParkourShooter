@@ -177,12 +177,45 @@ void UCustomCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float
 
 	}
 
+	// Transition
+	if (Safe_bTransitionFinished) {
+		SCREENLOG("Transition Finished")
+		UE_LOG(LogTemp, Warning, TEXT("FINISHED RM"))
+
+		if (TransitionName == "Mantle") {
+			if (IsValid(TransitionQueuedMontage)) {
+				SetMovementMode(MOVE_Flying);
+				CharacterOwner->PlayAnimMontage(TransitionQueuedMontage, TransitionQueuedMontageSpeed);
+				TransitionQueuedMontageSpeed = 0.f;
+				TransitionQueuedMontage = nullptr;
+			}
+			else {
+				SetMovementMode(MOVE_Walking);
+			}
+		}
+
+		TransitionName = "";
+		Safe_bTransitionFinished = false;
+	}
+
 	Super::UpdateCharacterStateBeforeMovement(DeltaSeconds);
 }
 
 void UCustomCharacterMovementComponent::UpdateCharacterStateAfterMovement(float DeltaSeconds)
 {
 	Super::UpdateCharacterStateAfterMovement(DeltaSeconds);
+
+	if (!HasAnimRootMotion() && Safe_bHadAnimRootMotion && IsMovementMode(MOVE_Flying)) {
+		UE_LOG(LogTemp, Warning, TEXT("Ending Anim Root Motion"))
+		SetMovementMode(MOVE_Walking);
+	}
+
+	if (GetRootMotionSourceByID(TransitionRMS_ID) && GetRootMotionSourceByID(TransitionRMS_ID)->Status.HasFlag(ERootMotionSourceStatusFlags::Finished)) {
+		RemoveRootMotionSourceByID(TransitionRMS_ID);
+		Safe_bTransitionFinished = true;
+	}
+
+	Safe_bHadAnimRootMotion = HasAnimRootMotion();
 }
 
 void UCustomCharacterMovementComponent::PhysCustom(float deltaTime, int32 Iterations)
@@ -875,70 +908,86 @@ bool UCustomCharacterMovementComponent::TryMantle()
 
 	SCREENLOG("Can Mantle")
 
-	//	// Mantle Selection
-	//	FVector ShortMantleTarget = GetMantleStartLocation(FrontHit, SurfaceHit, false);
-	//FVector TallMantleTarget = GetMantleStartLocation(FrontHit, SurfaceHit, true);
+	// Mantle Selection
+	FVector ShortMantleTarget = GetMantleStartLocation(FrontHit, SurfaceHit, false);
+	FVector TallMantleTarget = GetMantleStartLocation(FrontHit, SurfaceHit, true);
 
-	//bool bTallMantle = false;
-	//if (IsMovementMode(MOVE_Walking) && Height > GetScaleCapsuleHalfHeight() * 2)
-	//	bTallMantle = true;
-	//else if (IsMovementMode(MOVE_Falling) && (Velocity | FVector::UpVector) < 0)
-	//{
-	//	if (!GetWorld()->OverlapAnyTestByProfile(TallMantleTarget, FQuat::Identity, "BlockAll", CapShape, Params))
-	//		bTallMantle = true;
-	//}
-	//FVector TransitionTarget = bTallMantle ? TallMantleTarget : ShortMantleTarget;
-	//CAPSULE(TransitionTarget, FColor::Yellow)
+	bool bTallMantle = false;
+	
+	if (IsMovementMode(MOVE_Walking) && Height > GetScaleCapsuleHalfHeight() * 2)
+		bTallMantle = true;
 
-	//	// Perform Transition to Mantle
-	//	CAPSULE(UpdatedComponent->GetComponentLocation(), FColor::Red)
+	else if (IsMovementMode(MOVE_Falling) && (Velocity | FVector::UpVector) < 0) {
+		if (!GetWorld()->OverlapAnyTestByProfile(TallMantleTarget, FQuat::Identity, "BlockAll", CapShape, Params))
+			bTallMantle = true;
+	}
+	
+	FVector TransitionTarget = bTallMantle ? TallMantleTarget : ShortMantleTarget;
+	CAPSULE(TransitionTarget, FColor::Yellow)
 
-	//float UpSpeed = Velocity | FVector::UpVector;
-	//float TransDistance = FVector::Dist(TransitionTarget, UpdatedComponent->GetComponentLocation());
+	// Perform Transition to Mantle
+	CAPSULE(UpdatedComponent->GetComponentLocation(), FColor::Red)
 
-	//TransitionQueuedMontageSpeed = FMath::GetMappedRangeValueClamped(FVector2D(-500, 750), FVector2D(.9f, 1.2f), UpSpeed);
-	//TransitionRMS.Reset();
-	//TransitionRMS = MakeShared<FRootMotionSource_MoveToForce>();
-	//TransitionRMS->AccumulateMode = ERootMotionAccumulateMode::Override;
+	float UpSpeed = Velocity | FVector::UpVector;
+	float TransDistance = FVector::Dist(TransitionTarget, UpdatedComponent->GetComponentLocation());
 
-	//TransitionRMS->Duration = FMath::Clamp(TransDistance / 500.f, .1f, .25f);
-	//SCREENLOG(FString::Printf(TEXT("Duration: %f"), TransitionRMS->Duration))
-	//TransitionRMS->StartLocation = UpdatedComponent->GetComponentLocation();
-	//TransitionRMS->TargetLocation = TransitionTarget;
+	TransitionQueuedMontageSpeed = FMath::GetMappedRangeValueClamped(FVector2D(-500, 750), FVector2D(.9f, 1.2f), UpSpeed);
+	TransitionRMS.Reset();
 
-	//// Apply Transition Root Motion Source
-	//Velocity = FVector::ZeroVector;
-	//SetMovementMode(MOVE_Flying);
-	//TransitionRMS_ID = ApplyRootMotionSource(TransitionRMS);
-	//TransitionName = "Mantle";
+	TransitionRMS = MakeShared<FRootMotionSource_MoveToForce>();
+	TransitionRMS->AccumulateMode = ERootMotionAccumulateMode::Override;
 
-	//// Animations
-	//if (bTallMantle)
-	//{
-	//	TransitionQueuedMontage = TallMantleMontage;
-	//	CharacterOwner->PlayAnimMontage(TransitionTallMantleMontage, 1 / TransitionRMS->Duration);
-	//	if (IsServer()) Proxy_bTallMantle = !Proxy_bTallMantle;
-	//}
-	//else
-	//{
-	//	TransitionQueuedMontage = ShortMantleMontage;
-	//	CharacterOwner->PlayAnimMontage(TransitionShortMantleMontage, 1 / TransitionRMS->Duration);
-	//	if (IsServer()) Proxy_bShortMantle = !Proxy_bShortMantle;
-	//}
+	TransitionRMS->Duration = FMath::Clamp(TransDistance / 500.f, .1f, .25f);
+	SCREENLOG(FString::Printf(TEXT("Duration: %f"), TransitionRMS->Duration))
+	TransitionRMS->StartLocation = UpdatedComponent->GetComponentLocation();
+	TransitionRMS->TargetLocation = TransitionTarget;
+
+	// Apply Transition Root Motion Source
+	Velocity = FVector::ZeroVector;
+	SetMovementMode(MOVE_Flying); // to perform root motion in 3 dimensions, walking is restricted to 2d motion
+	
+	TransitionRMS_ID = ApplyRootMotionSource(TransitionRMS);
+	TransitionName = "Mantle";
+
+	// Animations
+	if (bTallMantle) {
+		TransitionQueuedMontage = TallMantleMontage;
+		CharacterOwner->PlayAnimMontage(TransitionTallMantleMontage, 1 / TransitionRMS->Duration);
+		if (IsServer()) Proxy_bTallMantle = !Proxy_bTallMantle;
+	}
+
+	else {
+		TransitionQueuedMontage = ShortMantleMontage;
+		CharacterOwner->PlayAnimMontage(TransitionShortMantleMontage, 1 / TransitionRMS->Duration);
+		if (IsServer()) Proxy_bShortMantle = !Proxy_bShortMantle;
+	}
 
 	return true;
 }
 
-FVector UCustomCharacterMovementComponent::GetMantleStartLocation(FHitResult FromHit, FHitResult SurfaceHit, bool bTallMantle) const
+FVector UCustomCharacterMovementComponent::GetMantleStartLocation(FHitResult FrontHit, FHitResult SurfaceHit, bool bTallMantle) const
 {
-	return FVector::ZeroVector;
+	float CosWallSteepnessAngle = FrontHit.Normal | FVector::UpVector;
+	float DownDistance = bTallMantle ? GetScaleCapsuleHalfHeight() * 2.f : MaxStepHeight - 1;
+	FVector EdgeTangent = FVector::CrossProduct(SurfaceHit.Normal, FrontHit.Normal).GetSafeNormal();
+
+	FVector MantleStart = SurfaceHit.Location;
+	MantleStart += FrontHit.Normal.GetSafeNormal2D() * (2.f + GetScaleCapsuleRadius());
+	MantleStart += UpdatedComponent->GetForwardVector().GetSafeNormal2D().ProjectOnTo(EdgeTangent) * GetScaleCapsuleRadius() * .3f;
+	MantleStart += FVector::UpVector * GetScaleCapsuleHalfHeight();
+	MantleStart += FVector::DownVector * DownDistance;
+	MantleStart += FrontHit.Normal.GetSafeNormal2D() * CosWallSteepnessAngle * DownDistance;
+
+	return MantleStart;
 }
 
 void UCustomCharacterMovementComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME_CONDITION(UCustomCharacterMovementComponent, Proxy_bDash, COND_SkipOwner)
+	DOREPLIFETIME_CONDITION(UCustomCharacterMovementComponent, Proxy_bDash, COND_SkipOwner);
+	DOREPLIFETIME_CONDITION(UCustomCharacterMovementComponent, Proxy_bShortMantle, COND_SkipOwner);
+	DOREPLIFETIME_CONDITION(UCustomCharacterMovementComponent, Proxy_bTallMantle, COND_SkipOwner);
 }
 
 void UCustomCharacterMovementComponent::OnRep_Dash()
@@ -950,10 +999,12 @@ void UCustomCharacterMovementComponent::OnRep_Dash()
 
 void UCustomCharacterMovementComponent::OnRep_ShortMantle()
 {
+	CharacterOwner->PlayAnimMontage(ProxyShortMantleMontage);
 }
 
 void UCustomCharacterMovementComponent::OnRep_TallMantle()
 {
+	CharacterOwner->PlayAnimMontage(ProxyTallMantleMontage);
 }
 
 bool UCustomCharacterMovementComponent::IsServer() const
