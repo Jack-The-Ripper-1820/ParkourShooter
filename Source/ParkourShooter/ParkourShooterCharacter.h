@@ -8,7 +8,7 @@
 #include "ParkourShooterCharacter.generated.h"
 
 
-UCLASS(config=Game)
+UCLASS(config = Game)
 class AParkourShooterCharacter : public ACharacter
 {
 	GENERATED_BODY()
@@ -17,10 +17,13 @@ class AParkourShooterCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class USpringArmComponent* CameraBoom;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	class UCustomCharacterMovementComponent* CustomCharacterMovement;
+
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UCameraComponent* FollowCamera;
-	
+
 	/** MappingContext */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputMappingContext* DefaultMappingContext;
@@ -46,9 +49,26 @@ class AParkourShooterCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* CrouchAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* DashAction;
+
 public:
-	AParkourShooterCharacter();
-	
+	AParkourShooterCharacter(const FObjectInitializer& ObjectInitializer);
+
+	virtual void PossessedBy(AController* NewController) override;
+
+	FCollisionQueryParams GetIgnoreCharacterParams() const;
+
+	bool bIsSprinting = false;
+	//bool bIsCrouched = false;
+	bool bIsProne = false;
+	bool bPressedCustomJump;
+	bool bIsDashing = false;
+
+	virtual void Jump() override;
+	virtual void StopJumping() override;
+
+
 
 protected:
 
@@ -60,20 +80,26 @@ protected:
 
 	void SwitchCamera(const FInputActionValue& Value);
 	void Sprint(const FInputActionValue& Value);
-	void Crouch(const FInputActionValue& Value);
-			
+	void CrouchPressed(const FInputActionValue& Value);
+	void CrouchReleased(const FInputActionValue& Value);
+	void DashPressed(const FInputActionValue& Value);
+	void DashReleased(const FInputActionValue& Value);
+
+
 
 protected:
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-	
+
 	// To add mapping context
 	virtual void BeginPlay();
-
 public:
 	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	/** Returns Cusotm Character Movement Component subobject **/
+	FORCEINLINE class UCustomCharacterMovementComponent* GetCustomCharacterMovement() const { return CustomCharacterMovement; }
 };
 

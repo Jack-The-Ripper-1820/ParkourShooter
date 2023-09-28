@@ -9,16 +9,24 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "ParkourShooter/Components/CustomCharacterMovementComponent.h"
+
 
 
 //////////////////////////////////////////////////////////////////////////
 // AParkourShooterCharacter
 
-AParkourShooterCharacter::AParkourShooterCharacter()
+AParkourShooterCharacter::AParkourShooterCharacter(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UCustomCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
+	CustomCharacterMovement = Cast<UCustomCharacterMovementComponent>(GetCharacterMovement());
+	CustomCharacterMovement->SetIsReplicated(true);
+
+	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
+
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
-		
+
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -51,6 +59,54 @@ AParkourShooterCharacter::AParkourShooterCharacter()
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
 
+void AParkourShooterCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	/*if (APlayerController* PlayerController = Cast<APlayerController>(GetController())) {
+
+		UE_LOG(LogTemp, Warning, TEXT("PLayerController Casted"));
+
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer())) {
+
+			UE_LOG(LogTemp, Warning, TEXT("Subsystem Casted"));
+
+
+			Subsystem->ClearAllMappings();
+			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+		}
+	}*/
+}
+
+FCollisionQueryParams AParkourShooterCharacter::GetIgnoreCharacterParams() const
+{
+	FCollisionQueryParams Params;
+
+	TArray<AActor*> CharacterChildren;
+	GetAllChildActors(CharacterChildren);
+	Params.AddIgnoredActors(CharacterChildren);
+	Params.AddIgnoredActor(this);
+
+	return Params;
+}
+
+void AParkourShooterCharacter::Jump()
+{
+	Super::Jump();
+
+	UE_LOG(LogTemp, Warning, TEXT("Pressed Jump: %d"), bPressedJump);
+
+	bPressedCustomJump = true;
+	bPressedJump = false;
+}
+
+void AParkourShooterCharacter::StopJumping()
+{
+	Super::StopJumping();
+
+	bPressedCustomJump = false;
+}
+
 void AParkourShooterCharacter::BeginPlay()
 {
 	// Call the base class  
@@ -73,10 +129,10 @@ void AParkourShooterCharacter::SetupPlayerInputComponent(class UInputComponent* 
 {
 	// Set up action bindings
 	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent)) {
-		
+
 		//Jumping
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &AParkourShooterCharacter::Jump);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::StopJumping);
 
 		//Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AParkourShooterCharacter::Move);
@@ -90,9 +146,18 @@ void AParkourShooterCharacter::SetupPlayerInputComponent(class UInputComponent* 
 		//Sprint
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::Sprint);
 
-		//Crouch
-		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::Crouch);
+		//CrouchPressed
+		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Started, this, &AParkourShooterCharacter::CrouchPressed);
 
+		//CrouchReleased
+		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::CrouchReleased);
+
+
+		//DashPressed
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &AParkourShooterCharacter::DashPressed);
+
+		//DashReleased
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::DashReleased);
 	}
 
 }
@@ -110,7 +175,7 @@ void AParkourShooterCharacter::Move(const FInputActionValue& Value)
 
 		// get forward vector
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-	
+
 		// get right vector 
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
@@ -139,10 +204,36 @@ void AParkourShooterCharacter::SwitchCamera(const FInputActionValue& Value)
 
 void AParkourShooterCharacter::Sprint(const FInputActionValue& Value)
 {
+	if (bIsSprinting) {
+		bIsSprinting = false;
+		CustomCharacterMovement->SprintReleased();
+	}
+	else {
+		bIsSprinting = true;
+		CustomCharacterMovement->SprintPressed();
+	}
 }
 
-void AParkourShooterCharacter::Crouch(const FInputActionValue& Value)
+void AParkourShooterCharacter::CrouchPressed(const FInputActionValue& Value)
 {
+	//bIsCrouched = ~bIsCrouched;
+	CustomCharacterMovement->CrouchPressed();
+}
+
+void AParkourShooterCharacter::CrouchReleased(const FInputActionValue& Value)
+{
+	//bIsCrouched = false;
+	CustomCharacterMovement->CrouchReleased();
+}
+
+void AParkourShooterCharacter::DashPressed(const FInputActionValue& Value)
+{
+	CustomCharacterMovement->DashPressed();
+}
+
+void AParkourShooterCharacter::DashReleased(const FInputActionValue& Value)
+{
+	CustomCharacterMovement->DashReleased();
 }
 
 
