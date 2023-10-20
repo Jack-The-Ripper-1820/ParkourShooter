@@ -189,7 +189,7 @@ void UCustomCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float
 
 	// Try Mantle
 	if (PlayerCharacterOwner->bPressedCustomJump) {
-		UE_LOG(LogTemp, Warning, TEXT("Trying Customjump"));
+		//UE_LOG(LogTemp, Warning, TEXT("Trying Customjump"));
 
 		if (TryMantle()) {
 			PlayerCharacterOwner->StopJumping();
@@ -198,7 +198,7 @@ void UCustomCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float
 		else
 		{
 			GEngine->AddOnScreenDebugMessage(-1, 2.F, FColor::Yellow, TEXT("Failed Mantle, Reverting to jump"));
-			UE_LOG(LogTemp, Warning, TEXT("Failed Mantle, Reverting to jump"));
+			//UE_LOG(LogTemp, Warning, TEXT("Failed Mantle, Reverting to jump"));
 			PlayerCharacterOwner->bPressedCustomJump = false;
 			CharacterOwner->bPressedJump = true;
 			CharacterOwner->CheckJumpInput(DeltaSeconds);

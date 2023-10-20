@@ -28,9 +28,11 @@ AParkourShooterCharacter::AParkourShooterCharacter(const FObjectInitializer& Obj
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 
 	// Don't rotate when the controller rotates. Let that just affect the camera.
-	bUseControllerRotationPitch = false;
+	/*bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
-	bUseControllerRotationRoll = false;
+	bUseControllerRotationRoll = false;*/
+
+	bUseControllerRotationYaw = true;
 
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
@@ -51,10 +53,17 @@ AParkourShooterCharacter::AParkourShooterCharacter(const FObjectInitializer& Obj
 	CameraBoom->bUsePawnControlRotation = true; // Rotate the arm based on the controller
 
 	// Create a follow camera
-	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
-	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
-	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
+	ThirdPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("ThirdPersonCamera"));
+	ThirdPersonCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
+	ThirdPersonCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
+	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
+	FirstPersonCamera->SetupAttachment(GetMesh(), TEXT("head"));
+	FirstPersonCamera->bUsePawnControlRotation = true;
+
+	ThirdPersonCamera->Deactivate();
+	FirstPersonCamera->Activate();
+	bFirstPerson = true;
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
@@ -200,6 +209,26 @@ void AParkourShooterCharacter::Look(const FInputActionValue& Value)
 
 void AParkourShooterCharacter::SwitchCamera(const FInputActionValue& Value)
 {
+	UE_LOG(LogTemp, Warning, TEXT("Switch Camera"));
+	if (ThirdPersonCamera && ThirdPersonCamera->IsActive()) {
+		ThirdPersonCamera->Deactivate();
+		FirstPersonCamera->Activate();
+		bUseControllerRotationYaw = true;
+		bFirstPerson = true;
+		/*if (IsLocallyControlled()) {
+			GetMesh()->HideBoneByName(TEXT("head"), PBO_None);
+		}*/
+	}
+
+	else if ((FirstPersonCamera && FirstPersonCamera->IsActive())) {
+		FirstPersonCamera->Deactivate();
+		ThirdPersonCamera->Activate();
+		bFirstPerson = false;
+		bUseControllerRotationYaw = false;
+		/*if (IsLocallyControlled()) {
+			GetMesh()->UnHideBoneByName(TEXT("head"));
+		}*/
+	}
 }
 
 void AParkourShooterCharacter::Sprint(const FInputActionValue& Value)
