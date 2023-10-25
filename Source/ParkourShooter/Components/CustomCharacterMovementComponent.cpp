@@ -372,7 +372,7 @@ void UCustomCharacterMovementComponent::EnterSlide(EMovementMode PrevMode, ECust
 	bWantsToCrouch = true;
 	bOrientRotationToMovement = false;
 
-	//CharacterOwner->PlayAnimMontage(SlideMontage);
+	CharacterOwner->PlayAnimMontage(SlideMontage);
 	Velocity += Velocity.GetSafeNormal2D() * SlideEnterImpulse;
 
 	FindFloor(UpdatedComponent->GetComponentLocation(), CurrentFloor, true, NULL);
