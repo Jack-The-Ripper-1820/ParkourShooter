@@ -10,7 +10,8 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "ParkourShooter/Components/CustomCharacterMovementComponent.h"
-
+#include "Net/UnrealNetwork.h"
+#include "ParkourShooter/Weapon/Weapon.h"
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -68,6 +69,11 @@ AParkourShooterCharacter::AParkourShooterCharacter(const FObjectInitializer& Obj
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
 
+void AParkourShooterCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+}
+
 void AParkourShooterCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
@@ -97,6 +103,32 @@ FCollisionQueryParams AParkourShooterCharacter::GetIgnoreCharacterParams() const
 	Params.AddIgnoredActor(this);
 
 	return Params;
+}
+
+
+void AParkourShooterCharacter::OnRep_OverlappingWeapon(AWeapon* LastWeapon)
+{
+	if (OverlappingWeapon) {
+		OverlappingWeapon->ShowPickupWidget(true);
+	}
+	if (LastWeapon) {
+		LastWeapon->ShowPickupWidget(false);
+	}
+}
+
+void AParkourShooterCharacter::SetOverlappingWeapon(AWeapon* Weapon)
+{
+	if (OverlappingWeapon) {
+		OverlappingWeapon->ShowPickupWidget(false);
+	}
+
+	OverlappingWeapon = Weapon;
+
+	if (IsLocallyControlled()) {
+		if (OverlappingWeapon) {
+			OverlappingWeapon->ShowPickupWidget(true);
+		}
+	}
 }
 
 void AParkourShooterCharacter::Jump()
@@ -129,6 +161,13 @@ void AParkourShooterCharacter::BeginPlay()
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
 	}
+}
+
+void AParkourShooterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME_CONDITION(AParkourShooterCharacter, OverlappingWeapon, COND_OwnerOnly);
 }
 
 //////////////////////////////////////////////////////////////////////////

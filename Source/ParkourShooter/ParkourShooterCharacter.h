@@ -55,12 +55,22 @@ class AParkourShooterCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* DashAction;
 
+	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
+	class AWeapon* OverlappingWeapon;
+
+	UFUNCTION()
+	void OnRep_OverlappingWeapon(AWeapon* LastWeapon);
+
 public:
 	AParkourShooterCharacter(const FObjectInitializer& ObjectInitializer);
+
+	virtual void Tick(float DeltaTime) override;
 
 	virtual void PossessedBy(AController* NewController) override;
 
 	FCollisionQueryParams GetIgnoreCharacterParams() const;
+
+	void SetOverlappingWeapon(AWeapon* Weapon);
 
 	bool bIsSprinting = false;
 	//bool bIsCrouched = false;
@@ -72,8 +82,6 @@ public:
 	virtual void StopJumping() override;
 
 	bool bFirstPerson = true;
-
-
 protected:
 
 	/** Called for movement input */
@@ -89,14 +97,15 @@ protected:
 	void DashPressed(const FInputActionValue& Value);
 	void DashReleased(const FInputActionValue& Value);
 
-
-
 protected:
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	// To add mapping context
 	virtual void BeginPlay();
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 public:
 	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
