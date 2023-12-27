@@ -12,6 +12,8 @@
 #include "ParkourShooter/Components/CustomCharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "ParkourShooter/Weapon/Weapon.h"
+#include "ParkourShooter/Components/CombatComponent.h"
+
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -65,6 +67,10 @@ AParkourShooterCharacter::AParkourShooterCharacter(const FObjectInitializer& Obj
 	ThirdPersonCamera->Deactivate();
 	FirstPersonCamera->Activate();
 	bFirstPerson = true;
+
+	Combat = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
+	Combat->SetIsReplicated(true);
+
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
@@ -129,6 +135,15 @@ void AParkourShooterCharacter::SetOverlappingWeapon(AWeapon* Weapon)
 			OverlappingWeapon->ShowPickupWidget(true);
 		}
 	}
+}
+
+void AParkourShooterCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	if (Combat) {
+		Combat->Character = this;
+	}
+
 }
 
 void AParkourShooterCharacter::Jump()
@@ -200,12 +215,14 @@ void AParkourShooterCharacter::SetupPlayerInputComponent(class UInputComponent* 
 		//CrouchReleased
 		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::CrouchReleased);
 
-
 		//DashPressed
 		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &AParkourShooterCharacter::DashPressed);
 
 		//DashReleased
 		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::DashReleased);
+
+		//Equip
+		EnhancedInputComponent->BindAction(EquipAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::EquipPressed);
 	}
 
 }
@@ -302,6 +319,13 @@ void AParkourShooterCharacter::DashPressed(const FInputActionValue& Value)
 void AParkourShooterCharacter::DashReleased(const FInputActionValue& Value)
 {
 	CustomCharacterMovement->DashReleased();
+}
+
+void AParkourShooterCharacter::EquipPressed(const FInputActionValue& Value)
+{
+	if (Combat && HasAuthority()) {
+		Combat->EquipWeapon(OverlappingWeapon);
+	}
 }
 
 
