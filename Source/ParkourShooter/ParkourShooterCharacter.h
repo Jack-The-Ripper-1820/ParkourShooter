@@ -67,6 +67,10 @@ class AParkourShooterCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere)
 	class UCombatComponent* Combat;
 
+	UFUNCTION(Server, Reliable)
+	void ServerEquipPressed();
+
+
 public:
 	AParkourShooterCharacter(const FObjectInitializer& ObjectInitializer);
 

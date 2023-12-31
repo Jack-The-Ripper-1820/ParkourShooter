@@ -323,7 +323,18 @@ void AParkourShooterCharacter::DashReleased(const FInputActionValue& Value)
 
 void AParkourShooterCharacter::EquipPressed(const FInputActionValue& Value)
 {
-	if (Combat && HasAuthority()) {
+	if (Combat) {
+		if (HasAuthority()) {
+			Combat->EquipWeapon(OverlappingWeapon);
+		}
+		else {
+			ServerEquipPressed();
+		}
+	}
+}
+
+void AParkourShooterCharacter::ServerEquipPressed_Implementation() {
+	if (Combat) {
 		Combat->EquipWeapon(OverlappingWeapon);
 	}
 }
