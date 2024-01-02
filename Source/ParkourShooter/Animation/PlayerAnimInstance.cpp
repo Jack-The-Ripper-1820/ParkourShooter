@@ -29,4 +29,5 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float Deltatime)
 
 	bIsAccelerating = PlayerCharacter->GetCharacterMovement()->GetCurrentAcceleration().Size() > 0.f;
 
+	bWeaponEquipped = PlayerCharacter->IsWeaponEquipped();
 }

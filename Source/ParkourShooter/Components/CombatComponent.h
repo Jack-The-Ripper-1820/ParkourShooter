@@ -15,8 +15,9 @@ class PARKOURSHOOTER_API UCombatComponent : public UActorComponent
 public:	
 	// Sets default values for this component's properties
 	UCombatComponent();
-
 	void EquipWeapon(class AWeapon* WeaponToEquip);
+
+	friend class AParkourShooterCharacter;
 
 protected:
 	// Called when the game starts
@@ -25,9 +26,12 @@ protected:
 public:	
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 public:
 	class AParkourShooterCharacter* Character;
+
+	UPROPERTY(Replicated)
 	AWeapon* EquippedWeapon;
 
 };

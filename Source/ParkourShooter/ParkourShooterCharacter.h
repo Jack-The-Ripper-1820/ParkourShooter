@@ -83,6 +83,8 @@ public:
 	void SetOverlappingWeapon(AWeapon* Weapon);
 	virtual void PostInitializeComponents() override;
 
+	bool IsWeaponEquipped();
+
 	bool bIsSprinting = false;
 	//bool bIsCrouched = false;
 	bool bIsProne = false;

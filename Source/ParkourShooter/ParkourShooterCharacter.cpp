@@ -146,6 +146,11 @@ void AParkourShooterCharacter::PostInitializeComponents()
 
 }
 
+bool AParkourShooterCharacter::IsWeaponEquipped()
+{
+	return (Combat && Combat->EquippedWeapon);
+}
+
 void AParkourShooterCharacter::Jump()
 {
 	Super::Jump();
