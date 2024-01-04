@@ -148,7 +148,12 @@ void AParkourShooterCharacter::PostInitializeComponents()
 
 bool AParkourShooterCharacter::IsWeaponEquipped()
 {
-	return (Combat && Combat->EquippedWeapon);
+	return Combat && Combat->EquippedWeapon;
+}
+
+bool AParkourShooterCharacter::IsAiming()
+{
+	return Combat && Combat->bAiming;
 }
 
 void AParkourShooterCharacter::Jump()
@@ -228,6 +233,14 @@ void AParkourShooterCharacter::SetupPlayerInputComponent(class UInputComponent* 
 
 		//Equip
 		EnhancedInputComponent->BindAction(EquipAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::EquipPressed);
+
+		//AimPressed
+		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Started, this, &AParkourShooterCharacter::AimPressed);
+
+		//AimReleased
+		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::AimReleased);
+
+
 	}
 
 }
@@ -335,6 +348,20 @@ void AParkourShooterCharacter::EquipPressed(const FInputActionValue& Value)
 		else {
 			ServerEquipPressed();
 		}
+	}
+}
+
+void AParkourShooterCharacter::AimPressed(const FInputActionValue& Value)
+{
+	if (Combat) {
+		Combat->SetAiming(true);
+	}
+}
+
+void AParkourShooterCharacter::AimReleased(const FInputActionValue& Value)
+{
+	if (Combat) {
+		Combat->SetAiming(false);
 	}
 }
 

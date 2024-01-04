@@ -32,5 +32,9 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float Deltatime)
 	bWeaponEquipped = PlayerCharacter->IsWeaponEquipped();
 
 	bIsCrouched = PlayerCharacter->GetCharacterMovement()->IsCrouching();
+
+	bAiming = PlayerCharacter->IsAiming();
+
+	bFirstPerson = PlayerCharacter->bFirstPerson;
 }
 	

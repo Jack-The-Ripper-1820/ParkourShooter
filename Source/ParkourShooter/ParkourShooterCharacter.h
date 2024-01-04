@@ -58,6 +58,9 @@ class AParkourShooterCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* EquipAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* AimAction;
+
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
 	class AWeapon* OverlappingWeapon;
 
@@ -84,6 +87,7 @@ public:
 	virtual void PostInitializeComponents() override;
 
 	bool IsWeaponEquipped();
+	bool IsAiming();
 
 	bool bIsSprinting = false;
 	//bool bIsCrouched = false;
@@ -110,6 +114,8 @@ protected:
 	void DashPressed(const FInputActionValue& Value);
 	void DashReleased(const FInputActionValue& Value);
 	void EquipPressed(const FInputActionValue& Value);
+	void AimPressed(const FInputActionValue& Value);
+	void AimReleased(const FInputActionValue& Value);
 
 protected:
 	// APawn interface
