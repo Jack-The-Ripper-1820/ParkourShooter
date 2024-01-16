@@ -298,7 +298,7 @@ void AParkourShooterCharacter::SwitchCamera(const FInputActionValue& Value)
 		FirstPersonCamera->Deactivate();
 		ThirdPersonCamera->Activate();
 		bFirstPerson = false;
-		bUseControllerRotationYaw = false;
+		bUseControllerRotationYaw = true;
 		/*if (IsLocallyControlled()) {
 			GetMesh()->UnHideBoneByName(TEXT("head"));
 		}*/
