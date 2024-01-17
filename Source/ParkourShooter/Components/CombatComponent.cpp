@@ -16,6 +16,10 @@ UCombatComponent::UCombatComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
 
+	if (Character) {
+		BaseWalkSpeed = Character->GetCharacterMovement()->MaxWalkSpeed;
+	}
+
 	// ...
 }
 
@@ -69,10 +73,18 @@ void UCombatComponent::SetAiming(bool bIsAiming)
 {
 	bAiming = bIsAiming;
 	ServerSetAiming(bIsAiming);
+
+	if (Character) {
+		Character->GetCharacterMovement()->MaxWalkSpeed = bIsAiming ? AimWalkSpeed : BaseWalkSpeed;
+	}
 }
 
 void UCombatComponent::ServerSetAiming_Implementation(bool bIsAiming)
 {
 	bAiming = bIsAiming;
+
+	if (Character) {
+		Character->GetCharacterMovement()->MaxWalkSpeed = bIsAiming ? AimWalkSpeed : BaseWalkSpeed;
+	}
 }
 
