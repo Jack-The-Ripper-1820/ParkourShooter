@@ -13,7 +13,7 @@
 #include "Net/UnrealNetwork.h"
 #include "ParkourShooter/Weapon/Weapon.h"
 #include "ParkourShooter/Components/CombatComponent.h"
-
+#include "Kismet/KismetMathLibrary.h"
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -80,6 +80,8 @@ AParkourShooterCharacter::AParkourShooterCharacter(const FObjectInitializer& Obj
 void AParkourShooterCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	AimOffset(DeltaTime);
 }
 
 void AParkourShooterCharacter::PossessedBy(AController* NewController)
@@ -364,6 +366,38 @@ void AParkourShooterCharacter::AimReleased(const FInputActionValue& Value)
 {
 	if (Combat) {
 		Combat->SetAiming(false);
+	}
+}
+
+void AParkourShooterCharacter::AimOffset(float DeltaTime)
+{
+	if (Combat && Combat->EquippedWeapon == nullptr) return;
+	
+	FVector Velocity = GetVelocity();
+	Velocity.Z = 0.f;
+	float Speed = Velocity.Size();
+	bool bIsInAir = GetCharacterMovement()->IsFalling();
+
+	if (Speed == 0.f && !bIsInAir) { // standing still, not jumping 
+		FRotator CurrentAimRotation = FRotator(0.f, GetBaseAimRotation().Yaw, 0.f);
+		FRotator DeltaAimRotation = UKismetMathLibrary::NormalizedDeltaRotator(CurrentAimRotation, StartingAimRotation);
+		AO_Yaw = DeltaAimRotation.Yaw;
+		bUseControllerRotationYaw = true;
+	}
+
+	if (Speed > 0.f || bIsInAir) {// running, or jumping
+		StartingAimRotation = FRotator(0.f, GetBaseAimRotation().Yaw, 0.f);
+		AO_Yaw = 0.f;
+		bUseControllerRotationYaw = true;
+	}
+
+	AO_Pitch = GetBaseAimRotation().Pitch;
+
+	if (AO_Pitch > 90.f && !IsLocallyControlled()) {
+		// map pitch from [270, 360) to [-90, 0)
+		FVector2D InRange(270.f, 360.f);
+		FVector2D OutRange(-90.f, 0.f);
+		AO_Pitch = FMath::GetMappedRangeValueClamped(InRange, OutRange, AO_Pitch);
 	}
 }
 

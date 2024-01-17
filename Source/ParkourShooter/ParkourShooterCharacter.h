@@ -73,6 +73,10 @@ class AParkourShooterCharacter : public ACharacter
 	UFUNCTION(Server, Reliable)
 	void ServerEquipPressed();
 
+	float AO_Yaw;
+	float AO_Pitch;
+	FRotator StartingAimRotation;
+
 
 public:
 	AParkourShooterCharacter(const FObjectInitializer& ObjectInitializer);
@@ -117,6 +121,8 @@ protected:
 	void AimPressed(const FInputActionValue& Value);
 	void AimReleased(const FInputActionValue& Value);
 
+	void AimOffset(float DeltaTime);
+
 protected:
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -134,5 +140,8 @@ public:
 
 	/** Returns Cusotm Character Movement Component subobject **/
 	FORCEINLINE class UCustomCharacterMovementComponent* GetCustomCharacterMovement() const { return CustomCharacterMovement; }
+
+	FORCEINLINE float GetAO_Yaw() const { return AO_Yaw; }
+	FORCEINLINE float GetAO_Pitch() const { return AO_Pitch; }
 };
 

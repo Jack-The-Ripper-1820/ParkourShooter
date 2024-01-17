@@ -49,5 +49,8 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float Deltatime)
 	const float Target = Delta.Yaw / Deltatime;
 	const float Interp = FMath::FInterpTo(Lean, Target, Deltatime, 6.f);
 	Lean = FMath::Clamp(Interp, -90.f, 90.f);
+
+	AO_Yaw = PlayerCharacter->GetAO_Yaw();
+	AO_Pitch = PlayerCharacter->GetAO_Pitch();
 }
 	
