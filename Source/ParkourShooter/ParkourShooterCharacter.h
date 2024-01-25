@@ -55,11 +55,28 @@ class AParkourShooterCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* DashAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* EquipAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* AimAction;
+
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
 	class AWeapon* OverlappingWeapon;
 
 	UFUNCTION()
 	void OnRep_OverlappingWeapon(AWeapon* LastWeapon);
+
+	UPROPERTY(VisibleAnywhere)
+	class UCombatComponent* Combat;
+
+	UFUNCTION(Server, Reliable)
+	void ServerEquipPressed();
+
+	float AO_Yaw;
+	float AO_Pitch;
+	FRotator StartingAimRotation;
+
 
 public:
 	AParkourShooterCharacter(const FObjectInitializer& ObjectInitializer);
@@ -71,6 +88,12 @@ public:
 	FCollisionQueryParams GetIgnoreCharacterParams() const;
 
 	void SetOverlappingWeapon(AWeapon* Weapon);
+	virtual void PostInitializeComponents() override;
+
+	bool IsWeaponEquipped();
+	bool IsAiming();
+
+	AWeapon* GetEquippedWeapon();
 
 	bool bIsSprinting = false;
 	//bool bIsCrouched = false;
@@ -96,6 +119,11 @@ protected:
 	void CrouchReleased(const FInputActionValue& Value);
 	void DashPressed(const FInputActionValue& Value);
 	void DashReleased(const FInputActionValue& Value);
+	void EquipPressed(const FInputActionValue& Value);
+	void AimPressed(const FInputActionValue& Value);
+	void AimReleased(const FInputActionValue& Value);
+
+	void AimOffset(float DeltaTime);
 
 protected:
 	// APawn interface
@@ -114,5 +142,8 @@ public:
 
 	/** Returns Cusotm Character Movement Component subobject **/
 	FORCEINLINE class UCustomCharacterMovementComponent* GetCustomCharacterMovement() const { return CustomCharacterMovement; }
+
+	FORCEINLINE float GetAO_Yaw() const { return AO_Yaw; }
+	FORCEINLINE float GetAO_Pitch() const { return AO_Pitch; }
 };
 

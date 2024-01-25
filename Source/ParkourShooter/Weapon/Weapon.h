@@ -54,13 +54,23 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Weapon Properties")
 	class USphereComponent* AreaSphere;
 
-	UPROPERTY(VisibleAnywhere, Category = "Weapon Properties")
+	UPROPERTY(ReplicatedUsing = OnRep_WeaponState, VisibleAnywhere, Category = "Weapon Properties")
 	EWeaponState WeaponState;
 
 	UPROPERTY(VisibleAnywhere, Category = "Weapon Properties")
 	class UWidgetComponent* PickupWidget;
+
+	UFUNCTION()
+	void OnRep_WeaponState();
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	void ShowPickupWidget(bool bShowWidget);
+
+public:
+	void SetWeaponState(EWeaponState State);
+
+	FORCEINLINE USphereComponent* GetAreaSphere() const { return AreaSphere; }
+	FORCEINLINE USkeletalMeshComponent* GetWeaponMesh() const { return WeaponMesh; }
 };
