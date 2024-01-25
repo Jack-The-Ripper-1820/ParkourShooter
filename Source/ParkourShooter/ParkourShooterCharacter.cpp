@@ -160,6 +160,12 @@ bool AParkourShooterCharacter::IsAiming()
 	return Combat && Combat->bAiming;
 }
 
+AWeapon* AParkourShooterCharacter::GetEquippedWeapon()
+{
+	if (Combat == nullptr) return nullptr;
+	return Combat->EquippedWeapon;
+}
+
 void AParkourShooterCharacter::Jump()
 {
 	Super::Jump();

@@ -93,6 +93,8 @@ public:
 	bool IsWeaponEquipped();
 	bool IsAiming();
 
+	AWeapon* GetEquippedWeapon();
+
 	bool bIsSprinting = false;
 	//bool bIsCrouched = false;
 	bool bIsProne = false;
