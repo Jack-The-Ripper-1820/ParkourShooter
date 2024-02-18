@@ -61,6 +61,9 @@ class AParkourShooterCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* AimAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* FireAction;
+
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
 	class AWeapon* OverlappingWeapon;
 
@@ -77,6 +80,8 @@ class AParkourShooterCharacter : public ACharacter
 	float AO_Pitch;
 	FRotator StartingAimRotation;
 
+	UPROPERTY(EditAnywhere, Category = Combat)
+	class UAnimMontage* FireWeaponMontage;
 
 public:
 	AParkourShooterCharacter(const FObjectInitializer& ObjectInitializer);
@@ -89,6 +94,7 @@ public:
 
 	void SetOverlappingWeapon(AWeapon* Weapon);
 	virtual void PostInitializeComponents() override;
+	void PlayFireMontage(bool bAiming);
 
 	bool IsWeaponEquipped();
 	bool IsAiming();
@@ -122,6 +128,8 @@ protected:
 	void EquipPressed(const FInputActionValue& Value);
 	void AimPressed(const FInputActionValue& Value);
 	void AimReleased(const FInputActionValue& Value);
+	void FirePressed(const FInputActionValue& Value);
+	void FireReleased(const FInputActionValue& Value);
 
 	void AimOffset(float DeltaTime);
 

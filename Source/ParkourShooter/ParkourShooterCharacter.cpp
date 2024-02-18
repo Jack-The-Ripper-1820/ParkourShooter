@@ -14,6 +14,7 @@
 #include "ParkourShooter/Weapon/Weapon.h"
 #include "ParkourShooter/Components/CombatComponent.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "ParkourShooter/Animation/PlayerAnimInstance.h"
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -153,6 +154,20 @@ void AParkourShooterCharacter::PostInitializeComponents()
 
 }
 
+void AParkourShooterCharacter::PlayFireMontage(bool bAiming)
+{
+	if (Combat == nullptr || Combat->EquippedWeapon == nullptr) return;
+
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	
+	if (AnimInstance && FireWeaponMontage) {
+		AnimInstance->Montage_Play(FireWeaponMontage);
+		FName SectionName;
+		SectionName = bAiming ? FName("RifleAim") : FName("RifleHip");
+		AnimInstance->Montage_JumpToSection(SectionName);
+	}
+}
+
 bool AParkourShooterCharacter::IsWeaponEquipped()
 {
 	return Combat && Combat->EquippedWeapon;
@@ -253,7 +268,11 @@ void AParkourShooterCharacter::SetupPlayerInputComponent(class UInputComponent* 
 		//AimReleased
 		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::AimReleased);
 
+		//FirePressed
+		EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Started, this, &AParkourShooterCharacter::FirePressed);
 
+		//FireReleased
+		EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Completed, this, &AParkourShooterCharacter::FireReleased);
 	}
 
 }
@@ -375,6 +394,20 @@ void AParkourShooterCharacter::AimReleased(const FInputActionValue& Value)
 {
 	if (Combat) {
 		Combat->SetAiming(false);
+	}
+}
+
+void AParkourShooterCharacter::FirePressed(const FInputActionValue& Value)
+{
+	if (Combat) {
+		Combat->FireButtonPressed(true);
+	}
+}
+
+void AParkourShooterCharacter::FireReleased(const FInputActionValue& Value)
+{
+	if (Combat) {
+		Combat->FireButtonPressed(false);
 	}
 }
 
